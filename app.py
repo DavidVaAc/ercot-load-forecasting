@@ -343,7 +343,7 @@ try:
             demanda_actual = y_past_real.iloc[-1]  # Extrae el valor más reciente del pasado conocido
             es_actual_critico = demanda_actual > 65000
             
-            estado_actual = "Estrés Operativo Activo" if es_actual_critico else "Operación Estable (Normal)"
+            estado_actual = "Estrés Operativo Activo" if es_actual_critico else "Operación Estable"
             color_actual = "red" if es_actual_critico else "green"
             
             st.metric(
