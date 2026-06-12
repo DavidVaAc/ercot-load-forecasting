@@ -168,7 +168,7 @@ Desarrollado por David Valle Físico y Científico de Datos (UNAM / TripleTen Da
 
 * 💼 [Portafolio](https://davidvaac.github.io/DavidVaAc/#)
 * 🌐 [LinkedIn](https://linkedin.com/in/david-fernando-valle-acosta)
-* 📋 [Curriculum](https://drive.google.com/file/d/1epmNOV5wLOiH2na0B_kiDaaevGUPrUdF/view?usp=sharing)
+* 📋 [Curriculum](https://drive.google.com/file/d/1qiQUyAmt3KGcFhBQ88-LPGflgPpHGs1m/view?usp=sharing)
 * ✉️ [Email](mailto:davidfervalle@gmail.com)
 
 ## 📄 Licencia
