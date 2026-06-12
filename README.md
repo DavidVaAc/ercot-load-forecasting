@@ -34,6 +34,8 @@ El pipeline cuenta además con un mecanismo de **filtrado determinista** basado 
 
 La aplicación de producción está desplegada en la nube y se divide en tres secciones estratégicas de monitoreo:
 
+* 📊 **[Streamlit Dashboard]([LINK_AL_DASHBOARD])**
+
 ### 1. Panel de Control Principal e Inferencia de Futuro
 Presenta la sincronización maestra del sistema mediante un reloj digital UTC nativo en JavaScript. Despliega tarjetas métricas que evalúan el estado térmico actual del estado mediante un termómetro dinámico multicolor y el pico de carga proyectado.
 
@@ -61,7 +63,9 @@ Desglosa la lógica interna de toma de decisiones del árbol del LightGBM para e
 
 ## 🔬 Análisis Estadístico & Ciencia de Datos (R&D)
 
-El proceso de investigación y modelado se encuentra documentado exhaustivamente en el [Jupyter Notebook Oficial]([LINK_AL_NOTEBOOK]). El algoritmo fue entrenado con datos históricos completos de los años **2022 a 2024 inclusive**, y validado ante un **año ciego de prueba (2025)**, obteniendo un sobresaliente **MAPE base de 3.11%**.
+El proceso de investigación y modelado se encuentra documentado exhaustivamente en el Jupyter Notebook Oficial.El algoritmo fue entrenado con datos históricos completos de los años **2022 a 2024 inclusive**, y validado ante un **año ciego de prueba (2025)**, obteniendo un sobresaliente **MAPE base de 3.11%**.
+
+* 📓 **[Notebook de Investigación y Modelado](<|LINK_AL_NOTEBOOK|>)**
 
 ### Hallazgos Clave de Investigación:
 * **La Curva Térmica en U:** Al analizar la relación entre la demanda y la temperatura promedio de Texas, se identificó una respuesta parabólica no lineal. El sistema basal de la red se estresa significativamente por debajo de los **12°C** (encendido de calefacción eléctrica residencial) y de forma crítica por encima de los **34°C** (operación continua de compresores HVAC).
@@ -122,6 +126,39 @@ VISUAL_CROSSING_KEY = "tu_clave_de_visual_crossing_aqui"
 streamlit run app.py
 ```
 ---
+
+## 📁 Estructura del Repositorio
+
+La arquitectura del proyecto está organizada de forma modular para separar la etapa de investigación (*R&D*) del despliegue operativo en producción (*Deployment*):
+
+```text
+ercot-load-forecasting/
+├── 📁 .streamlit/
+│   └── secrets.toml          # Configuración y llaves de API locales (Excluido en Git)
+├── 📁 data/
+│   ├── modelo_final_ercot_lgb.json  # Binario serializado del modelo LightGBM
+│   ├── backup_live_clima.csv      # Snapshot de contingencia para inferencia offline
+│   ├── backup_live_eia.csv        # Snapshot de contingencia para inferencia offline
+│   ├── ercot_load_2022_2025_static.csv  # Dataset histórico completo para entrenamiento y análisis
+│   └── texas_weather_2022_2025_static.csv  # Dataset histórico completo para entrenamiento y análisis
+├── 📁 images/
+│   ├── dashb_panel.png  # Capturas de pantalla para documentación
+│   ├── dashb_modelarq.png
+│   ├── dashb_quality.png
+│   ├── u_graph.png
+│   └── shap.png
+├── 📁 notebooks/
+│   ├── electricity_demand.ipynb  # Fase de R&D, entrenamiento y análisis SHAP
+│   ├── EIA_API.ipynb                # Exploración y validación de la API de la EIA
+│   └── OPEN_METEO_API.ipynb          # Exploración y validación de la API de Open-Meteo
+├── .gitignore                # Archivos y credenciales ocultas para control de versiones
+├── app.py                    # Código fuente de la interfaz operativa en Streamlit
+├── README.md                 # Documentación técnica principal del sistema
+├── requirements.txt          # Lista de dependencias y librerías para la nube
+├── LICENSE                    # Licencia de uso y distribución del proyecto
+├── Dockerfile                   # Configuración para contenerización (opcional)
+└── seed_backup.py
+```
 
 ## 👨‍💻 Autor
 
