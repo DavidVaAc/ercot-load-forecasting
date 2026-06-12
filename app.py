@@ -408,17 +408,17 @@ try:
         
         with m_col1:
             st.metric(
-                label="📊 MAPE en Vivo (Últimas 24h)", 
+                label="📊 MAPE", 
                 value=f"{live_mape:.2f} %",
                 delta=delta_mape_texto,
                 delta_color=color_mape
             )
             
         with m_col2: 
-            st.metric(label="🎯 MAE en Vivo", value=f"{live_mae:,.1f} MW")
+            st.metric(label="🎯 MAE", value=f"{live_mae:,.2f} MW")
             
         with m_col3: 
-            st.metric(label="📉 RMSE en Vivo", value=f"{live_rmse:,.1f} MW")
+            st.metric(label="📉 RMSE", value=f"{live_rmse:,.2f} MW")
         
         # Inicializamos el gráfico de control de calidad con doble eje Y
         fig_past = make_subplots(specs=[[{"secondary_y": True}]])
