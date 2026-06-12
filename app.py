@@ -369,7 +369,7 @@ try:
         # Eje Secundario (Derecho): Temperatura Proyectada
         fig_fut.add_trace(
             go.Scatter(x=X_live_future.index, y=X_live_future['texas_avg_temp'], 
-                       mode='lines', name='Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
+                       mode='lines', name='Pronóstico Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
             secondary_y=True
         )
         
