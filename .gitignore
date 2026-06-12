@@ -1,0 +1,21 @@
+# Credenciales y Secretos (CRÍTICO)
+.streamlit/
+.streamlit/secrets.toml
+
+# Caché de Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Archivos de datos temporales (Dejamos el modelo .json fuera para que sí se suba)
+data/backup_live_*.csv
+
+# Entornos virtuales locales (si usas alguno)
+venv/
+.venv/
+env/
+
+# imagenes y archivos de salida (si no quieres subirlos)
+images/corr:matrix.png
+images/feature_importance.png
+images/fi_pie.png
