@@ -2,7 +2,7 @@
 
 > Pipeline de MLOps de alta disponibilidad y modelo autoregresivo-termodinámico para el pronóstico de demanda energética horaria en la red eléctrica de Texas.
 
-[![Streamlit App](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=Streamlit&logoColor=white)](https://davidvalle-ercot-app.streamlit.app)
+[![Streamlit App](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=Streamlit&logoColor=white)](https://ercot-load-forecasting-by-davidvaac.streamlit.app/)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![Model](https://img.shields.io/badge/Model-LightGBM-ff69b4)](https://lightgbm.readthedocs.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -35,7 +35,7 @@ El pipeline cuenta además con un mecanismo de **filtrado determinista** basado 
 
 La aplicación de producción está desplegada en la nube y se divide en tres secciones estratégicas de monitoreo:
 
-* 📊 **[Streamlit Dashboard]([LINK_AL_DASHBOARD])**
+* 📊 **[Streamlit Dashboard](https://ercot-load-forecasting-by-davidvaac.streamlit.app/)**
 
 ### 1. Panel de Control Principal e Inferencia de Futuro
 Presenta la sincronización maestra del sistema mediante un reloj digital UTC nativo en JavaScript. Despliega tarjetas métricas que evalúan el estado térmico actual del estado mediante un termómetro dinámico multicolor y el pico de carga proyectado.
@@ -66,7 +66,7 @@ Desglosa la lógica interna de toma de decisiones del árbol del LightGBM para e
 
 El proceso de investigación y modelado se encuentra documentado exhaustivamente en el Jupyter Notebook Oficial.El algoritmo fue entrenado con datos históricos completos de los años **2022 a 2024 inclusive**, y validado ante un **año ciego de prueba (2025)**, obteniendo un sobresaliente **MAPE base de 3.11%**.
 
-* 📓 **[Notebook de Investigación y Modelado](<|LINK_AL_NOTEBOOK|>)**
+* 📓 **[Notebook de Investigación y Modelado](https://github.com/DavidVaAc/ercot-load-forecasting/blob/main/notebooks/electricity_demand.ipynb)**
 
 ### Hallazgos Clave de Investigación:
 * **La Curva Térmica en U:** Al analizar la relación entre la demanda y la temperatura promedio de Texas, se identificó una respuesta parabólica no lineal. El sistema basal de la red se estresa significativamente por debajo de los **12°C** (encendido de calefacción eléctrica residencial) y de forma crítica por encima de los **34°C** (operación continua de compresores HVAC).
