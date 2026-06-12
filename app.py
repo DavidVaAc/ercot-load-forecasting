@@ -309,7 +309,7 @@ try:
             
             st.metric(
                 label="Pico Máximo Proyectado (24h)",
-                value=f"{pico_max:.2f} MW",
+                value=f"{pico_max:,.2f} MW",
                 delta=delta_pico,
                 delta_color=color_pico
             )
@@ -348,7 +348,7 @@ try:
             
             st.metric(
                 label="Demanda Actual de la Red",
-                value=f"{demanda_actual:.2f} MW",
+                value=f"{demanda_actual:,.2f} MW",
                 delta=estado_actual,
                 delta_color=color_actual
             )
@@ -415,10 +415,10 @@ try:
             )
             
         with m_col2: 
-            st.metric(label="🎯 MAE en Vivo", value=f"{live_mae:.1f} MW")
+            st.metric(label="🎯 MAE en Vivo", value=f"{live_mae:,.1f} MW")
             
         with m_col3: 
-            st.metric(label="📉 RMSE en Vivo", value=f"{live_rmse:.1f} MW")
+            st.metric(label="📉 RMSE en Vivo", value=f"{live_rmse:,.1f} MW")
         
         # Inicializamos el gráfico de control de calidad con doble eje Y
         fig_past = make_subplots(specs=[[{"secondary_y": True}]])
