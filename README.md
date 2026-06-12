@@ -2,9 +2,10 @@
 
 > Pipeline de MLOps de alta disponibilidad y modelo autoregresivo-termodinámico para el pronóstico de demanda energética horaria en la red eléctrica de Texas.
 
-[![Streamlit App](https://static.streamlit.io/badge-svg.svg)]([LINK_AL_DASHBOARD])
+[![Streamlit App](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=Streamlit&logoColor=white)](https://davidvalle-ercot-app.streamlit.app)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![Model](https://img.shields.io/badge/Model-LightGBM-ff69b4)](https://lightgbm.readthedocs.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
@@ -157,6 +158,7 @@ ercot-load-forecasting/
 ├── requirements.txt          # Lista de dependencias y librerías para la nube
 ├── LICENSE                    # Licencia de uso y distribución del proyecto
 ├── Dockerfile                   # Configuración para contenerización (opcional)
+├── LICENSE
 └── seed_backup.py
 ```
 
@@ -168,3 +170,7 @@ Desarrollado por David Valle Físico y Científico de Datos (UNAM / TripleTen Da
 * 🌐 [LinkedIn](https://linkedin.com/in/david-fernando-valle-acosta)
 * 📋 [Curriculum](https://drive.google.com/file/d/1epmNOV5wLOiH2na0B_kiDaaevGUPrUdF/view?usp=sharing)
 * ✉️ [Email](mailto:davidfervalle@gmail.com)
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia MIT
