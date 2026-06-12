@@ -6,6 +6,7 @@ import requests
 import time
 import os
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit.components.v1 as components
 from datetime import datetime, timedelta
 from pandas.tseries.holiday import USFederalHolidayCalendar
@@ -351,12 +352,31 @@ try:
                 delta=estado_actual,
                 delta_color=color_actual
             )
-        # --- GRAFICA 1: PRÓXIMAS 24 HORAS ---
+        # --- GRAFICA 1: PRÓXIMAS 24 HORAS (CON EJE SECUNDARIO DE TEMPERATURA) ---
         st.space()
         st.subheader("📈 Curva de Demanda Eléctrica Proyectada (Próximas 24 Horas)", anchor="pronostico-24h")
-        fig_fut = go.Figure()
-        fig_fut.add_trace(go.Scatter(x=df_resultados_futuro.index, y=df_resultados_futuro['Demanda_Proyectada_MW'], mode='lines+markers', name='Pronóstico a Futuro', line=dict(color='cyan', width=3)))
-        fig_fut.update_layout(template="plotly_dark", xaxis_title="Fecha y Hora (UTC)", yaxis_title="Demanda de Energía (MW)", hovermode="x unified")
+        
+        # Inicializamos el gráfico con doble eje Y
+        fig_fut = make_subplots(specs=[[{"secondary_y": True}]])
+        
+        # Eje Principal (Izquierdo): Demanda Proyectada
+        fig_fut.add_trace(
+            go.Scatter(x=df_resultados_futuro.index, y=df_resultados_futuro['Demanda_Proyectada_MW'], 
+                       mode='lines+markers', name='Pronóstico Carga (MW)', line=dict(color='cyan', width=3)),
+            secondary_y=False
+        )
+        
+        # Eje Secundario (Derecho): Temperatura Proyectada
+        fig_fut.add_trace(
+            go.Scatter(x=X_live_future.index, y=X_live_future['texas_avg_temp'], 
+                       mode='lines', name='Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
+            secondary_y=True
+        )
+        
+        # Estilización del layout doble eje
+        fig_fut.update_layout(template="plotly_dark", xaxis_title="Fecha y Hora (UTC)", hovermode="x unified")
+        fig_fut.update_yaxes(title_text="Demanda de Energía (MW)", secondary_y=False)
+        fig_fut.update_yaxes(title_text="Temperatura Promedio (°C)", secondary_y=True, showgrid=False)
         st.plotly_chart(fig_fut, use_container_width=True)
         
         # --- GRAFICA 2: CONTROL DE CALIDAD ---
@@ -400,10 +420,31 @@ try:
         with m_col3: 
             st.metric(label="📉 RMSE en Vivo", value=f"{live_rmse:.1f} MW")
         
-        fig_past = go.Figure()
-        fig_past.add_trace(go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Real'], mode='lines+markers', name='Consumo Real (EIA)', line=dict(color='#00FF00', width=3)))
-        fig_past.add_trace(go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Predicho'], mode='lines+markers', name='Predicción Retroactiva LightGBM', line=dict(color='#FFA500', width=2, dash='dash')))
-        fig_past.update_layout(template="plotly_dark", xaxis_title="Fecha y Hora (UTC)", yaxis_title="Demanda de Energía (MW)", hovermode="x unified")
+        # Inicializamos el gráfico de control de calidad con doble eje Y
+        fig_past = make_subplots(specs=[[{"secondary_y": True}]])
+        
+        # Eje Principal (Izquierdo): Real vs Predicho
+        fig_past.add_trace(
+            go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Real'], 
+                       mode='lines+markers', name='Consumo Real EIA (MW)', line=dict(color='#00FF00', width=3)),
+            secondary_y=False
+        )
+        fig_past.add_trace(
+            go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Predicho'], 
+                       mode='lines+markers', name='Predicción LightGBM (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
+            secondary_y=False
+        )
+        
+        # Eje Secundario (Derecho): Temperatura Real que provocó ese consumo
+        fig_past.add_trace(
+            go.Scatter(x=X_live_past.index, y=X_live_past['texas_avg_temp'], 
+                       mode='lines', name='Temperatura Real (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
+            secondary_y=True
+        )
+        
+        fig_past.update_layout(template="plotly_dark", xaxis_title="Fecha y Hora (UTC)", hovermode="x unified")
+        fig_past.update_yaxes(title_text="Demanda de Energía (MW)", secondary_y=False)
+        fig_past.update_yaxes(title_text="Temperatura Promedio (°C)", secondary_y=True, showgrid=False)
         st.plotly_chart(fig_past, use_container_width=True)
 
         # =====================================================================
