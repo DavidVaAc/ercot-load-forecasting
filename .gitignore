@@ -1,5 +1,4 @@
 # Credenciales y Secretos (CRÍTICO)
-.streamlit/
 .streamlit/secrets.toml
 
 # Caché de Python
