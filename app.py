@@ -590,7 +590,7 @@ try:
             pr_c1, pr_c2 = st.columns(2)
             with pr_c1:
                 st.metric(
-                    label="📊 MAPE Promedio", 
+                    label="📊 MAPE", 
                     value=f"{live_mape:.2f} %",
                     delta=delta_mape_texto,
                     delta_color=color_mape,
@@ -611,7 +611,7 @@ try:
             r2_pc1, r2_pc2 = st.columns(2)
             with r2_pc1:
                 st.metric(
-                    label="🎯 MAE Promedio", 
+                    label="🎯 MAE", 
                     value=f"{live_mae:,.0f} MW".replace(",", " "),
                     delta=msg_mae,
                     delta_color=col_mae,
