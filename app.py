@@ -461,14 +461,21 @@ try:
                 secondary_y=True
             )
             
-# Estilización del layout doble eje (Corregido)
+            # Estilización del layout doble eje (Leyenda a la Derecha)
             fig_fut.update_layout(
                 template="plotly_dark", 
-                margin=dict(l=10, r=10, t=10, b=10), # Reduce márgenes para ganar espacio
+                # 🌟 Aumentamos r=60 para dar espacio a la leyenda en el borde derecho:
+                margin=dict(l=10, r=60, t=25, b=10), 
                 xaxis_title="Fecha y Hora (UTC)", 
                 hovermode="x unified",
-                # 🌟 ELIMINADO 'ylink=1' AQUÍ:
-                legend=dict(orientation="h", y=1.1, x=0.3) 
+                # 🌟 Nueva configuración de leyenda vertical externa:
+                legend=dict(
+                    orientation="v",    # "v" de vertical
+                    y=0.6,                # Alineada al tope superior
+                    x=1.05,             # Desplazada a la derecha del eje secundario
+                    xanchor="left",
+                    yanchor="top"
+                ) 
             )
             fig_fut.update_yaxes(title_text="Energía (MW)", secondary_y=False)
             fig_fut.update_yaxes(title_text="Temperatura (°C)", secondary_y=True, showgrid=False)
@@ -664,10 +671,18 @@ try:
             
             fig_past.update_layout(
                 template="plotly_dark", 
-                margin=dict(l=10, r=10, t=25, b=10),
+                # 🌟 Aumentamos r=60 para dar espacio a la leyenda en el borde derecho:
+                margin=dict(l=10, r=60, t=25, b=10), 
                 xaxis_title="Fecha y Hora (UTC)", 
                 hovermode="x unified",
-                legend=dict(orientation="h", y=1.12, x=0.2)
+                # 🌟 Nueva configuración de leyenda vertical externa:
+                legend=dict(
+                    orientation="v",    # "v" de vertical
+                    y=0.6,                # Alineada al tope superior
+                    x=1.05,             # Desplazada a la derecha del eje secundario
+                    xanchor="left",
+                    yanchor="top"
+                ) 
             )
             fig_past.update_yaxes(title_text="Energía (MW)", secondary_y=False)
             fig_past.update_yaxes(title_text="Temperatura (°C)", secondary_y=True, showgrid=False)
