@@ -400,7 +400,7 @@ try:
             r2_c1, r2_c2 = st.columns(2)
             with r2_c1:
                 st.metric(
-                    label="🔋 Pico Máx",
+                    label="🔋 Demanda Máx",
                     value=f"{pico_max:,.0f} MW".replace(",", " "),
                     delta=msg_dem_max,
                     delta_color=col_dem_max,
@@ -421,7 +421,7 @@ try:
             r3_c1, r3_c2 = st.columns(2)
             with r3_c1:
                 st.metric(
-                    label="🪫 Mínimo Valle",
+                    label="🪫 Demanda Min",
                     value=f"{pico_min:,.0f} MW".replace(",", " "),
                     delta=msg_dem_min,
                     delta_color=col_dem_min,
