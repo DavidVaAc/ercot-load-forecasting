@@ -286,7 +286,7 @@ try:
     if len(X_live_future) == 0 or len(X_live_past) == 0:
         st.warning("Alineando flujos de datos temporales... Intenta recargar la página en unos segundos.")
     else:
-        # Ejecutar inferencias matemáticas
+        # Ejecutar inferencias matemáticas y cálculos de soporte para el dashboard
         predictions_future = model.predict(X_live_future)
         df_resultados_futuro = pd.DataFrame(index=X_live_future.index)
         df_resultados_futuro['Demanda_Proyectada_MW'] = predictions_future
@@ -295,89 +295,179 @@ try:
         df_resultados_pasado = pd.DataFrame(index=X_live_past.index)
         df_resultados_pasado['Real'] = y_past_real
         df_resultados_pasado['Predicho'] = predictions_past
+
+        # --- 1. CÁLCULO DE VALORES CORE ---
+        demanda_actual = y_past_real.iloc[-1]
+        pico_max = df_resultados_futuro['Demanda_Proyectada_MW'].max()
+        pico_min = df_resultados_futuro['Demanda_Proyectada_MW'].min()
         
-        # --- PANEL DE MÉTRICAS GENERALES (REDISEÑO ESTRATÉGICO) ---
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            # 🔮 MÉTRICA 1: Inferencia del Pico Futuro + Delta de Riesgo Proyectado
-            pico_max = df_resultados_futuro['Demanda_Proyectada_MW'].max()
-            es_pico_critico = pico_max > 65000
-            
-            delta_pico = "Riesgo de Alta Demanda" if es_pico_critico else "Margen Operativo Seguro"
-            color_pico = "red" if es_pico_critico else "green"
-            
-            st.metric(
-                label="Pico Máximo Proyectado (24h)",
-                value=f"{pico_max:,.0f} MW".replace(",", " "),
-                delta=delta_pico,
-                delta_color=color_pico
-            )
-            
-        with col2:
-            # 🌡️ MÉTRICA 2: Termómetro Dinámico Estilizado (Se queda igual de robusto)
-            temp_actual = X_live_future['texas_avg_temp'].iloc[0]
-            
-            if temp_actual < 12.0:
-                color_termometro = "blue"
-                estado_temp = "Estrés por Frío" if temp_actual < 4.0 else "Inercia Invernal"
-            elif temp_actual <= 26.0:
-                color_termometro = "green"
-                estado_temp = "Zona de Confort"
-            elif temp_actual <= 34.0:
-                color_termometro = "orange"
-                estado_temp = "Carga Térmica Media"
-            else:
-                color_termometro = "red"
-                estado_temp = "Calor Crítico (HVAC Máximo)"
-                
-            st.metric(
-                label="Temperatura Promedio Actual",
-                value=f"{temp_actual:.1f} °C",
-                delta=f"{estado_temp}",
-                delta_color=color_termometro
-            )
-            
-        with col3:
-            # 🔌 MÉTRICA 3: Estado Actual del Sistema (Basado en el último dato real de la EIA)
-            demanda_actual = y_past_real.iloc[-1]  # Extrae el valor más reciente del pasado conocido
-            es_actual_critico = demanda_actual > 65000
-            
-            estado_actual = "Estrés Operativo Activo" if es_actual_critico else "Operación Estable"
-            color_actual = "red" if es_actual_critico else "green"
-            
-            st.metric(
-                label="Demanda Actual de la Red",
-                value=f"{demanda_actual:,.0f} MW".replace(",", " "),
-                delta=estado_actual,
-                delta_color=color_actual
-            )
-        # --- GRAFICA 1: PRÓXIMAS 24 HORAS (CON EJE SECUNDARIO DE TEMPERATURA) ---
+        temp_actual = X_live_future['texas_avg_temp'].iloc[0]
+        temp_max_pred = X_live_future['texas_avg_temp'].max()
+        temp_min_pred = X_live_future['texas_avg_temp'].min()
+
+        # --- 2. SEMÁFOROS NATIVOS (FILA 1: DEMANDA) ---
+        # Demanda Actual
+        if demanda_actual > 65000:
+            msg_dem_act, col_dem_act = "Estrés Crítico", "red"
+        elif demanda_actual > 52000:
+            msg_dem_act, col_dem_act = "Carga Moderada", "orange"
+        else:
+            msg_dem_act, col_dem_act = "Operación Estable", "green"
+
+        # Máxima Demanda Proyectada
+        if pico_max > 65000:
+            msg_dem_max, col_dem_max = "Riesgo de Apagón", "red"
+        elif pico_max > 52000:
+            msg_dem_max, col_dem_max = "Carga Alta Proyectada", "orange"
+        else:
+            msg_dem_max, col_dem_max = "Margen Seguro", "green"
+
+        # Mínima Demanda Proyectada (Valle de carga)
+        if pico_min < 28000:
+            msg_dem_min, col_dem_min = "Valle Crítico (Exceso Gen)", "red"
+        elif pico_min < 35000:
+            msg_dem_min, col_dem_min = "Valle Bajo (Ajustar Base)", "orange"
+        else:
+            msg_dem_min, col_dem_min = "Valle Estable", "green"
+
+
+        # --- 3. SEMÁFOROS NATIVOS (FILA 2: TEMPERATURA) ---
+        # Temperatura Actual
+        if temp_actual > 35.0:
+            msg_tmp_act, col_tmp_act = "Calor Extremo (HVAC)", "red"
+        elif temp_actual < 4.0:
+            msg_tmp_act, col_tmp_act = "Estrés por Frío", "blue"
+        elif 12.0 <= temp_actual <= 26.0:
+            msg_tmp_act, col_tmp_act = "Zona de Confort", "green"
+        else:
+            msg_tmp_act, col_tmp_act = "Transición Térmica", "orange"
+
+        # Máxima Temperatura Proyectada
+        if temp_max_pred > 35.0:
+            msg_tmp_max, col_tmp_max = "Domo de Calor Proyectado", "red"
+        elif temp_max_pred > 28.0:
+            msg_tmp_max, col_tmp_max = "Elevación Térmica", "orange"
+        else:
+            msg_tmp_max, col_tmp_max = "Techo Térmico Seguro", "green"
+
+        # Mínima Temperatura Proyectada
+        if temp_min_pred < 4.0:
+            msg_tmp_min, col_tmp_min = "Helada / Riesgo Térmico", "red"
+        elif temp_min_pred < 12.0:
+            msg_tmp_min, col_tmp_min = "Descenso Moderado", "blue"
+        else:
+            msg_tmp_min, col_tmp_min = "Suelo Térmico Seguro", "green"
+
+
+# --- 4. RENDERIZADO EN LA INTERFAZ (DISEÑO SCADA COMPACTO) ---
         st.space()
-        st.subheader("📈 Curva de Demanda Eléctrica Proyectada (Próximas 24 Horas)", anchor="pronostico-24h")
+        st.subheader("📊 Control Operativo y Demanda Proyectada (Próximas 24 Horas)", anchor="pronostico-24h")
         
-        # Inicializamos el gráfico con doble eje Y
-        fig_fut = make_subplots(specs=[[{"secondary_y": True}]])
-        
-        # Eje Principal (Izquierdo): Demanda Proyectada
-        fig_fut.add_trace(
-            go.Scatter(x=df_resultados_futuro.index, y=df_resultados_futuro['Demanda_Proyectada_MW'], 
-                       mode='lines+markers', name='Pronóstico Carga (MW)', line=dict(color='cyan', width=3)),
-            secondary_y=False
-        )
-        
-        # Eje Secundario (Derecho): Temperatura Proyectada
-        fig_fut.add_trace(
-            go.Scatter(x=X_live_future.index, y=X_live_future['texas_avg_temp'], 
-                       mode='lines', name='Pronóstico Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
-            secondary_y=True
-        )
-        
-        # Estilización del layout doble eje
-        fig_fut.update_layout(template="plotly_dark", xaxis_title="Fecha y Hora (UTC)", hovermode="x unified")
-        fig_fut.update_yaxes(title_text="Demanda de Energía (MW)", secondary_y=False)
-        fig_fut.update_yaxes(title_text="Temperatura Promedio (°C)", secondary_y=True, showgrid=False)
-        st.plotly_chart(fig_fut, use_container_width=True)
+        # Separamos la pantalla en 2 bloques principales (Métricas Izquierda [1], Gráfico Derecha [2.2])
+        main_col1, main_col2 = st.columns([1, 2.2])
+
+        # =====================================================================
+        # BLOQUE IZQUIERDO: MATRIZ DE KPIs 3x2 (Actual, Máximo, Mínimo)
+        # =====================================================================
+        with main_col1:
+
+            # 🌟 Título exclusivo para la sección de métricas
+            st.markdown("#### 🎛️ KPIs Operativos")
+            st.write("") # Espacio sutil de alineación técnica       
+
+            # --- RENGLÓN 1: ESTADO ACTUAL (TIEMPO REAL) ---
+            r1_c1, r1_c2 = st.columns(2)
+            with r1_c1:
+                st.metric(
+                    label="Demanda Actual",
+                    value=f"{demanda_actual:,.0f} MW".replace(",", " "),
+                    delta=msg_dem_act,
+                    delta_color=col_dem_act
+                )
+            with r1_c2:
+                st.metric(
+                    label="Temp Actual",
+                    value=f"{temp_actual:.1f} °C",
+                    delta=msg_tmp_act,
+                    delta_color=col_tmp_act
+                )
+            
+            st.write("") # Micro-espacio estético entre bloques
+            
+            # --- RENGLÓN 2: ESCENARIO MÁXIMO (PRÓXIMAS 24H) ---
+            r2_c1, r2_c2 = st.columns(2)
+            with r2_c1:
+                st.metric(
+                    label="Pico Máx (24h)",
+                    value=f"{pico_max:,.0f} MW".replace(",", " "),
+                    delta=msg_dem_max,
+                    delta_color=col_dem_max
+                )
+            with r2_c2:
+                st.metric(
+                    label="Máx Temp (24h)",
+                    value=f"{temp_max_pred:.1f} °C",
+                    delta=msg_tmp_max,
+                    delta_color=col_tmp_max
+                )
+                
+            st.write("")
+            
+            # --- RENGLÓN 3: ESCENARIO MÍNIMO (PRÓXIMAS 24H) ---
+            r3_c1, r3_c2 = st.columns(2)
+            with r3_c1:
+                st.metric(
+                    label="Mínimo Valle",
+                    value=f"{pico_min:,.0f} MW".replace(",", " "),
+                    delta=msg_dem_min,
+                    delta_color=col_dem_min
+                )
+            with r3_c2:
+                st.metric(
+                    label="Mín Temp (24h)",
+                    value=f"{temp_min_pred:.1f} °C",
+                    delta=msg_tmp_min,
+                    delta_color=col_tmp_min
+                )
+
+        # =====================================================================
+        # BLOQUE DERECHO: VISUALIZACIÓN TEMPORAL CON DOBLE EJE
+        # =====================================================================
+        with main_col2:
+
+            # 🌟 Título exclusivo para la sección del gráfico
+            st.markdown("#### 📈 Demanda Proyectada e Impacto Térmico")
+
+            # Inicializamos el gráfico con doble eje Y
+            fig_fut = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Eje Principal (Izquierdo): Demanda Proyectada
+            fig_fut.add_trace(
+                go.Scatter(x=df_resultados_futuro.index, y=df_resultados_futuro['Demanda_Proyectada_MW'], 
+                           mode='lines+markers', name='Carga (MW)', line=dict(color='cyan', width=3)),
+                secondary_y=False
+            )
+            
+            # Eje Secundario (Derecho): Temperatura Proyectada
+            fig_fut.add_trace(
+                go.Scatter(x=X_live_future.index, y=X_live_future['texas_avg_temp'], 
+                           mode='lines', name='Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
+                secondary_y=True
+            )
+            
+# Estilización del layout doble eje (Corregido)
+            fig_fut.update_layout(
+                template="plotly_dark", 
+                margin=dict(l=10, r=10, t=10, b=10), # Reduce márgenes para ganar espacio
+                xaxis_title="Fecha y Hora (UTC)", 
+                hovermode="x unified",
+                # 🌟 ELIMINADO 'ylink=1' AQUÍ:
+                legend=dict(orientation="h", y=1.1, x=0.3) 
+            )
+            fig_fut.update_yaxes(title_text="Energía (MW)", secondary_y=False)
+            fig_fut.update_yaxes(title_text="Temperatura (°C)", secondary_y=True, showgrid=False)
+            
+            st.plotly_chart(fig_fut, use_container_width=True)
         
         # --- GRAFICA 2: CONTROL DE CALIDAD ---
         st.space()
@@ -452,7 +542,7 @@ try:
         # =====================================================================
         st.space()
         st.markdown("---")
-        st.subheader("📊 Arquitectura y Gobernanza del Modelo LightGBM", anchor="arquitectura-modelo")
+        st.subheader("🧠 Arquitectura y Gobernanza del Modelo LightGBM", anchor="arquitectura-modelo")
         st.markdown("Análisis estratégico y detallado sobre cómo el algoritmo distribuye su atención para predecir la carga de ERCOT.")
         
         # 1. Base de datos detallada (Mapeo R&D)
