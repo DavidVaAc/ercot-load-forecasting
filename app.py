@@ -307,25 +307,25 @@ try:
 
         # --- 2. SEMÁFOROS NATIVOS (FILA 1: DEMANDA) ---
         # Demanda Actual
-        if demanda_actual > 65000:
+        if demanda_actual > 88000:
             msg_dem_act, col_dem_act = "Estrés Crítico", "red"
-        elif demanda_actual > 52000:
+        elif demanda_actual > 75000:
             msg_dem_act, col_dem_act = "Carga Moderada", "orange"
         else:
             msg_dem_act, col_dem_act = "Operación Estable", "green"
 
         # Máxima Demanda Proyectada
-        if pico_max > 65000:
+        if pico_max > 92000:
             msg_dem_max, col_dem_max = "Riesgo de Apagón", "red"
-        elif pico_max > 52000:
+        elif pico_max > 82000:
             msg_dem_max, col_dem_max = "Carga Alta Proyectada", "orange"
         else:
             msg_dem_max, col_dem_max = "Margen Seguro", "green"
 
         # Mínima Demanda Proyectada (Valle de carga)
-        if pico_min < 28000:
+        if pico_min < 32000:
             msg_dem_min, col_dem_min = "Valle Crítico (Exceso Gen)", "red"
-        elif pico_min < 35000:
+        elif pico_min < 38000:
             msg_dem_min, col_dem_min = "Valle Bajo (Ajustar Base)", "orange"
         else:
             msg_dem_min, col_dem_min = "Valle Estable", "green"
@@ -352,17 +352,17 @@ try:
 
         # Mínima Temperatura Proyectada
         if temp_min_pred < 4.0:
-            msg_tmp_min, col_tmp_min = "Helada / Riesgo Térmico", "red"
+            msg_tmp_min, col_tmp_min = "Helada / Riesgo Térmico", "blue"
         elif temp_min_pred < 12.0:
-            msg_tmp_min, col_tmp_min = "Descenso Moderado", "blue"
+            msg_tmp_min, col_tmp_min = "Descenso Moderado", "orange"
         else:
             msg_tmp_min, col_tmp_min = "Suelo Térmico Seguro", "green"
 
 
 # --- 4. RENDERIZADO EN LA INTERFAZ (DISEÑO SCADA COMPACTO) ---
         st.space()
-        st.subheader("📊 Control Operativo y Demanda Proyectada (Próximas 24 Horas)", anchor="pronostico-24h")
-        
+        st.subheader("🕹️ Control Operativo y Demanda Proyectada (Próximas 24 Horas)", anchor="pronostico-24h")
+        st.space()
         # Separamos la pantalla en 2 bloques principales (Métricas Izquierda [1], Gráfico Derecha [2.2])
         main_col1, main_col2 = st.columns([1, 2.2])
 
@@ -372,24 +372,26 @@ try:
         with main_col1:
 
             # 🌟 Título exclusivo para la sección de métricas
-            st.markdown("#### 🎛️ KPIs Operativos")
+            st.subheader("🎛️ KPIs Operativos")
             st.write("") # Espacio sutil de alineación técnica       
 
             # --- RENGLÓN 1: ESTADO ACTUAL (TIEMPO REAL) ---
             r1_c1, r1_c2 = st.columns(2)
             with r1_c1:
                 st.metric(
-                    label="Demanda Actual",
+                    label="⚡ Demanda Actual",
                     value=f"{demanda_actual:,.0f} MW".replace(",", " "),
                     delta=msg_dem_act,
-                    delta_color=col_dem_act
+                    delta_color=col_dem_act,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
                 )
             with r1_c2:
                 st.metric(
-                    label="Temp Actual",
+                    label="🌡️ Temp Actual",
                     value=f"{temp_actual:.1f} °C",
                     delta=msg_tmp_act,
-                    delta_color=col_tmp_act
+                    delta_color=col_tmp_act,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
                 )
             
             st.write("") # Micro-espacio estético entre bloques
@@ -398,17 +400,19 @@ try:
             r2_c1, r2_c2 = st.columns(2)
             with r2_c1:
                 st.metric(
-                    label="Pico Máx (24h)",
+                    label="🔋 Pico Máx",
                     value=f"{pico_max:,.0f} MW".replace(",", " "),
                     delta=msg_dem_max,
-                    delta_color=col_dem_max
+                    delta_color=col_dem_max,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
                 )
             with r2_c2:
                 st.metric(
-                    label="Máx Temp (24h)",
+                    label="🔥 Máx Temp",
                     value=f"{temp_max_pred:.1f} °C",
                     delta=msg_tmp_max,
-                    delta_color=col_tmp_max
+                    delta_color=col_tmp_max,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
                 )
                 
             st.write("")
@@ -417,17 +421,19 @@ try:
             r3_c1, r3_c2 = st.columns(2)
             with r3_c1:
                 st.metric(
-                    label="Mínimo Valle",
+                    label="🪫 Mínimo Valle",
                     value=f"{pico_min:,.0f} MW".replace(",", " "),
                     delta=msg_dem_min,
-                    delta_color=col_dem_min
+                    delta_color=col_dem_min,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
                 )
             with r3_c2:
                 st.metric(
-                    label="Mín Temp (24h)",
+                    label="❄️ Mín Temp",
                     value=f"{temp_min_pred:.1f} °C",
                     delta=msg_tmp_min,
-                    delta_color=col_tmp_min
+                    delta_color=col_tmp_min,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
                 )
 
         # =====================================================================
@@ -436,7 +442,7 @@ try:
         with main_col2:
 
             # 🌟 Título exclusivo para la sección del gráfico
-            st.markdown("#### 📈 Demanda Proyectada e Impacto Térmico")
+            st.subheader("📈 Demanda Proyectada e Impacto Térmico")
 
             # Inicializamos el gráfico con doble eje Y
             fig_fut = make_subplots(specs=[[{"secondary_y": True}]])
@@ -469,74 +475,204 @@ try:
             
             st.plotly_chart(fig_fut, use_container_width=True)
         
-        # --- GRAFICA 2: CONTROL DE CALIDAD ---
+        # --- GRAFICA 2: CONTROL DE CALIDAD (DISEÑO SCADA SIMÉTRICO) ---
         st.space()
         st.markdown("---")
         st.subheader("🔄 Control de Calidad: Rendimiento del Modelo en las Últimas 24 Horas", anchor="control-calidad")
+        st.space()
         
+        # --- CÁLCULO DE MÉTRICAS AVANZADAS DE ERROR ---
         errores = df_resultados_pasado['Real'] - df_resultados_pasado['Predicho']
-        live_mae = np.mean(np.abs(errores))
-        live_rmse = np.sqrt(np.mean(errores ** 2))
-        live_mape = np.mean(np.abs(errores / df_resultados_pasado['Real'])) * 100
         
-        # 📊 BENCHMARK REAL DE MLOps (Test Ciego 2025)
+        live_mape = np.mean(np.abs(errores / df_resultados_pasado['Real'])) * 100
+        live_max_ape = np.max(np.abs(errores / df_resultados_pasado['Real'])) * 100
+        
+        live_mae = np.mean(np.abs(errores))
+        live_max_ae = np.max(np.abs(errores))
+        
+        live_rmse = np.sqrt(np.mean(errores ** 2))
+        live_mbe = np.mean(errores) # Sesgo Medio (Bias)
+        
+        # =====================================================================
+        # 📊 CALIBRACIÓN DE SEMÁFOROS Y DELTAS (SIMETRÍA DE FILAS)
+        # =====================================================================
+        
+        # --- RENGLÓN 1: DELTAS PORCENTUALES ---
+        # MAPE (vs Benchmark)
         BASELINE_MAPE = 3.11
         mape_desviacion = live_mape - BASELINE_MAPE
         
-        # Lógica de semáforo de 3 niveles para una transición suave (Green -> Orange -> Red)
         if mape_desviacion <= 0:
             color_mape = "green"
-            delta_mape_texto = f"{mape_desviacion:.2f}% (Óptimo vs R&D)"
-        elif 0 < mape_desviacion <= 0.50:
+            delta_mape_texto = f"{mape_desviacion:.2f}% (Óptimo)"
+        elif mape_desviacion <= 0.89: # Hasta 4% MAPE total
             color_mape = "orange"
-            delta_mape_texto = f"+{mape_desviacion:.2f}% (Margen de Tolerancia)"
+            delta_mape_texto = f"+{mape_desviacion:.2f}% (Tolerancia)"
         else:
             color_mape = "red"
-            delta_mape_texto = f"+{mape_desviacion:.2f}% (Degradación Crítica)"
+            delta_mape_texto = f"+{mape_desviacion:.2f}% (Degradación)"
+            
+        # Max APE (Peor escenario en porcentaje)
+        if live_max_ape > 6.0:
+            msg_max_ape, col_max_ape = "Desviación Crítica", "red"
+        elif live_max_ape > 4.5:
+            msg_max_ape, col_max_ape = "Pico de Error Alto", "orange"
+        else:
+            msg_max_ape, col_max_ape = "Pico Bajo Control", "green"
+
+        # --- RENGLÓN 2: DELTAS DE MAGNITUD (MW) ---
+        # MAE Promedio (Basado en tolerancia operativa de volumen)
+        if live_mae > 2200:
+            msg_mae, col_mae = "Desviación Volumétrica Alta", "red"
+        elif live_mae > 1500:
+            msg_mae, col_mae = "Margen de Tolerancia", "orange"
+        else:
+            msg_mae, col_mae = "Precisión Óptima", "green"
+            
+        # Max AE (El error más grande del día en Megavatios)
+        if live_max_ae > 4500:
+            msg_max_ae, col_max_ae = "Desajuste Crítico de Carga", "red"
+        elif live_max_ae > 3000:
+            msg_max_ae, col_max_ae = "Excursión de Error Moderada", "orange"
+        else:
+            msg_max_ae, col_max_ae = "Pico Absoluto Seguro", "green"
+
+        # --- RENGLÓN 3: DELTAS DE VARIANZA Y SESGO ---
+        # RMSE (Sensibilidad a errores grandes)
+        # Si el RMSE se aleja mucho del MAE, significa que hubo errores aislados gigantescos
+        relacion_rmse_mae = live_rmse / (live_mae if live_mae > 0 else 1)
+        if relacion_rmse_mae > 1.5:
+            # Caso crítico: El RMSE se disparó por un error puntual masivo
+            msg_rmse, col_rmse = "Outliers Críticos (Falla Puntual)", "red"
+        elif relacion_rmse_mae > 1.3:
+            # Caso moderado: Pérdida de homogeneidad en los errores
+            msg_rmse, col_rmse = "Presencia de Outliers", "orange"
+        else:
+            # Caso óptimo: Errores distribuidos normalmente cerca de 1.25
+            msg_rmse, col_rmse = "Errores Homogéneos", "green"
+            
+        # --- CALIBRACIÓN DE SESGO MEDIO (MBE) TRICOLOR ---
+        abs_mbe = abs(live_mbe)
         
-        m_col1, m_col2, m_col3 = st.columns(3)
-        
-        with m_col1:
-            st.metric(
-                label="📊 MAPE", 
-                value=f"{live_mape:.2f} %",
-                delta=delta_mape_texto,
-                delta_color=color_mape
+        if abs_mbe > 3000:
+            # 🚨 CASO CRÍTICO: Desajuste estructural masivo
+            color_mbe = "red"
+            msg_mbe = "Subestimación Crítica (Riesgo Apagón)" if live_mbe > 0 else "Sobreestimación Crítica (Desperdicio)"
+            
+        elif abs_mbe > 1200:
+            # 🔸 CASO MODERADO: Deriva o desfase estacional
+            color_mbe = "orange"
+            msg_mbe = "Sesgo: Subestimando Demanda" if live_mbe > 0 else "Sesgo: Sobreestimando Demanda"
+            
+        else:
+            # ✅ CASO ÓPTIMO: El modelo está perfectamente balanceado
+            color_mbe = "green"
+            msg_mbe = "Alineación Óptima (Sin Sesgo)"
+
+        # =====================================================================
+        # --- RENDERIZADO DEL LAYOUT EN ESPEJO ---
+        # =====================================================================
+        past_col1, past_col2 = st.columns([1, 2.2])
+
+        # BLOQUE IZQUIERDO: MATRIZ DE ERRORES 3x2 (Alineación Forzada de Deltas)
+        with past_col1:
+            st.markdown("#### ⚙️ Métricas de Calidad")
+            st.write("")
+            
+            # --- RENGLÓN 1: ERRORES PORCENTUALES ---
+            pr_c1, pr_c2 = st.columns(2)
+            with pr_c1:
+                st.metric(
+                    label="📊 MAPE Promedio", 
+                    value=f"{live_mape:.2f} %",
+                    delta=delta_mape_texto,
+                    delta_color=color_mape,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                )
+            with pr_c2:
+                st.metric(
+                    label="📈 Max APE (Pico)", 
+                    value=f"{live_max_ape:.2f} %",
+                    delta=msg_max_ape,
+                    delta_color=col_max_ape,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                )
+            
+            st.write("")
+            
+            # --- RENGLÓN 2: ERRORES ABSOLUTOS (MW) ---
+            r2_pc1, r2_pc2 = st.columns(2)
+            with r2_pc1:
+                st.metric(
+                    label="🎯 MAE Promedio", 
+                    value=f"{live_mae:,.0f} MW".replace(",", " "),
+                    delta=msg_mae,
+                    delta_color=col_mae,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                )
+            with r2_pc2:
+                st.metric(
+                    label="⚠️ Max AE (Pico)", 
+                    value=f"{live_max_ae:,.0f} MW".replace(",", " "),
+                    delta=msg_max_ae,
+                    delta_color=col_max_ae,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                )
+                
+            st.write("")
+            
+            # --- RENGLÓN 3: VARIANZA Y SESGO ---
+            r3_pc1, r3_pc2 = st.columns(2)
+            with r3_pc1:
+                st.metric(
+                    label="📉 RMSE (Varianza)", 
+                    value=f"{live_rmse:,.0f} MW".replace(",", " "),
+                    delta=msg_rmse,
+                    delta_color=col_rmse,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                )
+            with r3_pc2:
+                st.metric(
+                    label="⚖️ Sesgo Medio (MBE)", 
+                    value=f"{live_mbe:,.0f} MW".replace(",", " "),
+                    delta=msg_mbe,
+                    delta_color=color_mbe,
+                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                )
+
+        # BLOQUE DERECHO: GRÁFICA HISTÓRICA REAL VS PREDICHO
+        with past_col2:
+            st.markdown("#### 📊 Desempeño Histórico (Últimas 24h)")
+            
+            fig_past = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            fig_past.add_trace(
+                go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Real'], 
+                           mode='lines+markers', name='Real EIA (MW)', line=dict(color='#00FF00', width=3)),
+                secondary_y=False
+            )
+            fig_past.add_trace(
+                go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Predicho'], 
+                           mode='lines+markers', name='Predicción Lgbm (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
+                secondary_y=False
+            )
+            fig_past.add_trace(
+                go.Scatter(x=X_live_past.index, y=X_live_past['texas_avg_temp'], 
+                           mode='lines', name='Temp Real (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
+                secondary_y=True
             )
             
-        with m_col2: 
-            st.metric(label="🎯 MAE", value=f"{live_mae:,.0f} MW".replace(",", " "))
+            fig_past.update_layout(
+                template="plotly_dark", 
+                margin=dict(l=10, r=10, t=25, b=10),
+                xaxis_title="Fecha y Hora (UTC)", 
+                hovermode="x unified",
+                legend=dict(orientation="h", y=1.12, x=0.2)
+            )
+            fig_past.update_yaxes(title_text="Energía (MW)", secondary_y=False)
+            fig_past.update_yaxes(title_text="Temperatura (°C)", secondary_y=True, showgrid=False)
             
-        with m_col3: 
-            st.metric(label="📉 RMSE", value=f"{live_rmse:,.0f} MW".replace(",", " "))
-        
-        # Inicializamos el gráfico de control de calidad con doble eje Y
-        fig_past = make_subplots(specs=[[{"secondary_y": True}]])
-        
-        # Eje Principal (Izquierdo): Real vs Predicho
-        fig_past.add_trace(
-            go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Real'], 
-                       mode='lines+markers', name='Consumo Real EIA (MW)', line=dict(color='#00FF00', width=3)),
-            secondary_y=False
-        )
-        fig_past.add_trace(
-            go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Predicho'], 
-                       mode='lines+markers', name='Predicción LightGBM (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
-            secondary_y=False
-        )
-        
-        # Eje Secundario (Derecho): Temperatura Real que provocó ese consumo
-        fig_past.add_trace(
-            go.Scatter(x=X_live_past.index, y=X_live_past['texas_avg_temp'], 
-                       mode='lines', name='Temperatura Real (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
-            secondary_y=True
-        )
-        
-        fig_past.update_layout(template="plotly_dark", xaxis_title="Fecha y Hora (UTC)", hovermode="x unified")
-        fig_past.update_yaxes(title_text="Demanda de Energía (MW)", secondary_y=False)
-        fig_past.update_yaxes(title_text="Temperatura Promedio (°C)", secondary_y=True, showgrid=False)
-        st.plotly_chart(fig_past, use_container_width=True)
-
+            st.plotly_chart(fig_past, use_container_width=True)
         # =====================================================================
         # 📊 SECCIÓN: INTERPRETABILIDAD Y DIAGNÓSTICO EJECUTIVO DEL MODELO
         # =====================================================================
