@@ -589,7 +589,7 @@ try:
             # 1. Carga Proyectada (Eje Izquierdo - MW)
             fig_fut.add_trace(
                 go.Scatter(x=df_plot.index, y=df_plot['Demanda_Proyectada_MW'], 
-                           mode='lines+markers', name='💡 LGBM Carga Proyectada (MW)', line=dict(color='cyan', width=3)),
+                           mode='lines+markers', name='💡 LGBM Demanda Proyectada (MW)', line=dict(color='cyan', width=3)),
                 secondary_y=False
             )
             
@@ -630,7 +630,7 @@ try:
         # --- GRAFICA 2: CONTROL DE CALIDAD Y BENCHMARKING (DISEÑO SCADA SIMÉTRICO) ---
         st.space()
         st.markdown("---")
-        st.subheader("🔄 Benchmarking de Calidad: 💡LightGBM vs 🏢 Oficial ERCOT ISO (Últimas 24h)", anchor="control-calidad")
+        st.subheader("⚖️ Benchmarking de Calidad: 💡LightGBM vs 🏢 Oficial ERCOT ISO. (Últimas 24h)", anchor="control-calidad")
         st.space()
         
         # --- CÁLCULO DE MÉTRICAS AVANZADAS DE ERROR (TU LIGHTGBM) ---
@@ -727,7 +727,7 @@ try:
         past_col1, past_col2 = st.columns([1, 2.2])
 
         with past_col1:
-            st.markdown("#### 🏆 Cuadro de Honor Industrial")
+            st.markdown("#### ⚙️ Auditoría de Modelos")
             st.write("")
             
             # --- RENGLÓN 1: MAPE (PORCENTUAL CON DESVIACIÓN DEL BENCHMARK) ---
@@ -796,7 +796,7 @@ try:
         df_plot2.index = df_plot2.index.tz_localize('UTC').tz_convert('US/Central').tz_localize(None)
 
         with past_col2:
-            st.markdown("#### 📊 Desempeño Histórico Multi-Modelo (Últimas 24h)")
+            st.markdown("#### 📊 Desempeño Histórico Multi-Modelo")
             
             fig_past = make_subplots(specs=[[{"secondary_y": True}]])
             
@@ -959,22 +959,51 @@ try:
         - 📊 [Arquitectura del Modelo](#arquitectura-modelo)
         """)
 
+        # =====================================================================
+        # 💾 EXPORTACIÓN DE DATOS DUAL (OPERATIVA & AUDITORÍA)
+        # =====================================================================
         st.sidebar.markdown("---")
         st.sidebar.subheader("💾 Exportar Resultados")
 
-        # Consolidamos las predicciones para la descarga
-        df_export = df_resultados_futuro.copy()
-        df_export['Unidad'] = 'MW'
-        df_export['Estado_Red'] = ["Alerta" if x > 65000 else "Normal" for x in df_export['Demanda_Proyectada_MW']]
+        # --- 🔮 BLOQUE 1: EXPORTACIÓN HORIZONTE FUTURO (OPERACIONES) ---
+        df_export_fut = df_resultados_futuro.copy()
+        df_export_fut['Unidad'] = 'MW'
+        # Marcamos alertas operativas si la carga compromete umbrales estructurales
+        df_export_fut['Estado_Red'] = ["Alerta" if x > 65000 else "Normal" for x in df_export_fut['Demanda_Proyectada_MW']]
 
-        csv = df_export.to_csv().encode('utf-8')
+        csv_fut = df_export_fut.to_csv().encode('utf-8')
 
         st.sidebar.download_button(
-            label="📥 Descargar Predicciones (CSV)",
-            data=csv,
-            file_name=f'prediccion_ercot_{datetime.now().strftime("%Y%m%d_%H%M")}.csv',
+            label="📥 Descargar Proyecciones 24h (CSV)",
+            data=csv_fut,
+            file_name=f'pronostico_ercot_futuro_{datetime.now().strftime("%Y%m%d_%H%M")}.csv',
             mime='text/csv',
+            key="btn_descarga_futuro"
         )
+
+        st.sidebar.write("") # Espaciador sutil entre botones
+
+        # --- 📊 BLOQUE 2: EXPORTACIÓN HISTÓRICA AUDITADA (MLOps BENCHMARKING) ---
+        df_export_pas = df_resultados_pasado.copy()
+        
+        # Enriquecemos el CSV agregando las columnas de error neto en Megavatios
+        df_export_pas['Error_Neto_LightGBM_MW'] = df_export_pas['Real'] - df_export_pas['Predicho']
+        
+        if competencia_activa:
+            df_export_pas['Error_Neto_ERCOT_ISO_MW'] = df_export_pas['Real'] - df_export_pas['ERCOT_Pred']
+            
+        df_export_pas['Unidad_Potencia'] = 'MW'
+        df_export_pas['Temperatura_Unidad'] = '°C'
+
+        csv_pas = df_export_pas.to_csv().encode('utf-8')
+
+        st.sidebar.download_button(
+            label="📊 Descargar Historial Auditado (CSV)",
+            data=csv_pas,
+            file_name=f'auditoria_ercot_pasado_{datetime.now().strftime("%Y%m%d_%H%M")}.csv',
+            mime='text/csv',
+            key="btn_descarga_pasado"
+        )   
 
         # =====================================================================
         # 💼 TARJETA DE CONTACTO PROFESIONAL (AL FINAL DEL SIDEBAR)
