@@ -532,7 +532,7 @@ try:
                 )
             with r4_c2:
                 st.metric(
-                    label="🪫 Mín Reserva (24h)",
+                    label="🪫 Mín Reserva",
                     value=f"{reserva_min_pct:.1f} %",
                     delta=msg_res_min,
                     delta_color=col_res_min,
@@ -813,7 +813,7 @@ try:
                 )
             with r4_pc2:
                 st.metric(
-                    label="🔄 Skewness (Residuales)", 
+                    label="🔄 Skewness", 
                     value=f"{live_skew:.2f}",
                     delta=msg_skew,
                     delta_color=col_skew,
