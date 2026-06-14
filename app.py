@@ -613,11 +613,9 @@ try:
         live_mbe = np.mean(errores) # Sesgo Medio (Bias)
 
         # --- CÁLCULOS PARA EL RENGLÓN 4 DE CALIDAD ---
-        # 1. Calculamos los residuales históricos (Real - Predicho)
-        residuales = df_resultados_pasado['Real'] - df_resultados_pasado['Predicho']
 
         # 2. Coeficiente de Skewness (Asimetría de errores)
-        live_skew = residuales.skew()
+        live_skew = ((errores/errores.std())**3).mean()
 
         # 3. Coeficiente R² (Varianza explicada)        
         live_r2 = r2_score(df_resultados_pasado['Real'], df_resultados_pasado['Predicho'])
