@@ -589,21 +589,21 @@ try:
             # 1. Carga Proyectada (Eje Izquierdo - MW)
             fig_fut.add_trace(
                 go.Scatter(x=df_plot.index, y=df_plot['Demanda_Proyectada_MW'], 
-                           mode='lines+markers', name='Carga (MW)', line=dict(color='cyan', width=3)),
+                           mode='lines+markers', name='💡 LGBM Carga Proyectada (MW)', line=dict(color='cyan', width=3)),
                 secondary_y=False
             )
             
             # 2. Margen de Reserva (Eje Izquierdo - MW)
             fig_fut.add_trace(
                 go.Scatter(x=df_plot.index, y=df_plot['Reserva_Proyectada_MW'], 
-                           mode='lines', name='Reserva Disp. (MW)', line=dict(color='#E040FB', width=2, dash='longdash')),
+                           mode='lines', name='🔋 Reserva Disp. (MW)', line=dict(color='#E040FB', width=2, dash='longdash')),
                 secondary_y=False
             )
             
             # 3. 🌟 CORREGIDO: Temperatura Proyectada (Eje Derecho - °C)
             fig_fut.add_trace(
                 go.Scatter(x=df_plot.index, y=df_plot['texas_avg_temp'], 
-                           mode='lines', name='Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
+                           mode='lines', name='🌡️ Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
                 secondary_y=True
             )
             
@@ -734,30 +734,63 @@ try:
             r1_c1, r1_c2 = st.columns(2)
             with r1_c1:
                 # delta_color="inverse" hace que si la desviación es positiva (más error) se pinte rojo, y si es negativa (menos error) verde
-                st.metric(label="📊 MAPE (💡 LightGBM)", value=f"{live_mape:.2f} %", delta=msg_mape_lgb, delta_color="inverse")
+                st.metric(label="📊 MAPE (💡 LightGBM)", 
+                          value=f"{live_mape:.2f} %", 
+                          delta=msg_mape_lgb, 
+                          delta_color=col_mape_lgb, 
+                          delta_arrow="off")
             with r1_c2:
-                st.metric(label="📊 MAPE (🏢 Oficial ISO)", value=f"{ercot_mape:.2f} %", delta=msg_mape_iso, delta_color="inverse")
+                st.metric(label="📊 MAPE (🏢 Oficial ISO)", 
+                          value=f"{ercot_mape:.2f} %", 
+                          delta=msg_mape_iso, 
+                          delta_color=col_mape_iso, 
+                          delta_arrow="off")
 
             # --- RENGLÓN 2: MAE (VOLUMEN EN MW) ---
             r2_c1, r2_c2 = st.columns(2)
             with r2_c1:
-                st.metric(label="🎯 MAE (💡 LightGBM)", value=f"{live_mae:,.0f} MW".replace(",", " "), delta=msg_mae_lgb, delta_color=col_mae_lgb, delta_arrow="off")
+                st.metric(label="🎯 MAE (💡 LightGBM)", 
+                          value=f"{live_mae:,.0f} MW".replace(",", " "), 
+                          delta=msg_mae_lgb, 
+                          delta_color=col_mae_lgb, 
+                          delta_arrow="off")
             with r2_c2:
-                st.metric(label="🎯 MAE (🏢 Oficial ISO)", value=f"{ercot_mae:,.0f} MW".replace(",", " "), delta=msg_mae_iso, delta_color=col_mae_iso, delta_arrow="off")
+                st.metric(label="🎯 MAE (🏢 Oficial ISO)", 
+                          value=f"{ercot_mae:,.0f} MW".replace(",", " "), 
+                          delta=msg_mae_iso, 
+                          delta_color=col_mae_iso, 
+                          delta_arrow="off")
                 
             # --- RENGLÓN 3: MBE (SESGO SISTEMÁTICO) ---
             r3_c1, r3_c2 = st.columns(2)
             with r3_c1:
-                st.metric(label="⚖️ MBE (💡 LightGBM)", value=f"{live_mbe:,.0f} MW".replace(",", " "), delta=msg_mbe_lgb, delta_color=col_mbe_lgb, delta_arrow="off")
+                st.metric(label="⚖️ MBE (💡 LightGBM)", 
+                          value=f"{live_mbe:,.0f} MW".replace(",", " "), 
+                          delta=msg_mbe_lgb, 
+                          delta_color=col_mbe_lgb, 
+                          delta_arrow="off")
             with r3_c2:
-                st.metric(label="⚖️ MBE (🏢 Oficial ISO)", value=f"{ercot_mbe:,.0f} MW".replace(",", " "), delta=msg_mbe_iso, delta_color=col_mbe_iso, delta_arrow="off")
+                st.metric(label="⚖️ MBE (🏢 Oficial ISO)", 
+                          value=f"{ercot_mbe:,.0f} MW".replace(",", " "), 
+                          delta=msg_mbe_iso, 
+                          delta_color=col_mbe_iso, 
+                          delta_arrow="off")
 
             # --- RENGLÓN 4: SKEWNESS (RIESGO DE COLA PESADA) ---
             r4_c1, r4_c2 = st.columns(2)
             with r4_c1:
-                st.metric(label="🔄 Skewness (💡 LightGBM)", value=f"{live_skew:.2f}", delta=msg_skew_lgb, delta_color=col_skew_lgb, delta_arrow="off")
+                st.metric(label="🔄 Skewness (💡 LightGBM)", 
+                          value=f"{live_skew:.2f}", 
+                          delta=msg_skew_lgb, 
+                          delta_color=col_skew_lgb, 
+                          delta_arrow="off")
             with r4_c2:
-                st.metric(label="🔄 Skewness (🏢 Oficial ISO)", value=f"{ercot_skew:.2f}", delta=msg_skew_iso, delta_color=col_skew_iso, delta_arrow="off")
+                st.metric(label="🔄 Skewness (🏢 Oficial ISO)", 
+                          value=f"{ercot_skew:.2f}", 
+                          delta=msg_skew_iso, 
+                          delta_color=col_skew_iso, 
+                          delta_arrow="off")
+                
         # BLOQUE DERECHO: GRÁFICA HISTÓRICA TRIPLE TRAZO
         df_plot2 = df_resultados_pasado.copy()
         df_plot2.index = df_plot2.index.tz_localize('UTC').tz_convert('US/Central').tz_localize(None)
@@ -769,12 +802,12 @@ try:
             
             fig_past.add_trace(
                 go.Scatter(x=df_plot2.index, y=df_plot2['Real'], 
-                           mode='lines+markers', name='Real EIA (MW)', line=dict(color='#00FF00', width=3)),
+                           mode='lines+markers', name='⚡ Real EIA (MW)', line=dict(color='#00FF00', width=3)),
                 secondary_y=False
             )
             fig_past.add_trace(
                 go.Scatter(x=df_plot2.index, y=df_plot2['Predicho'], 
-                           mode='lines+markers', name='Predicción 💡 LGBM (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
+                           mode='lines+markers', name='💡 LGBM Predicción (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
                 secondary_y=False
             )
             
@@ -782,14 +815,14 @@ try:
             if competencia_activa:
                 fig_past.add_trace(
                     go.Scatter(x=df_plot2.index, y=df_plot2['ERCOT_Pred'], 
-                               mode='lines', name='Predicción 🏢 Oficial ISO', 
+                               mode='lines', name='🏢 Oficial ISO Predicción', 
                                line=dict(color='#00D2FF', width=2, dash='longdash')),
                     secondary_y=False
                 )
                 
             fig_past.add_trace(
                 go.Scatter(x=df_plot2.index, y=df_plot2['texas_avg_temp'], 
-                           mode='lines', name='Temp Real (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
+                           mode='lines', name='🌡️ Temp Real (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
                 secondary_y=True
             )
             
