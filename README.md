@@ -33,12 +33,16 @@ El sistema extrae la demanda histórica real del estado a través de la API de l
 
 ### 🔌 3. Canal de Telemetría de Red e Inercia Operativa (Gridstatus)
 El sistema se integra directamente con los servidores de **ERCOT mediante la API de Gridstatus** para extraer dos fuentes de datos en tiempo real:
+
 1. **`get_real_time_system_conditions()`**: Captura la demanda y capacidad real instantánea de la red para alimentar las métricas en vivo.
+
 2. **`get_capacity_forecast()`**: Extrae el pronóstico de capacidad disponible publicada por los operadores físicos.
 
 #### 🛠️ Pipeline de Ingeniería de Datos en Producción:
 * **Downsampling de Granularidad:** La API de la red reporta datos cada 5 minutos. El backend ejecuta un remuestreo por hora (`.resample('h').mean()`) para acoplar la capacidad con la frecuencia horaria del modelo predictivo.
+
 * **Manejo de Asincronía Temporal (Left Join + Ffill):** Dado que ERCOT publica la capacidad proyectada únicamente para las horas inmediatas del ciclo operativo (creando ventanas flotantes de 4 a 6 horas), el sistema realiza un `left join` sobre las 24 horas predichas por el LightGBM y aplica **Inercia Operativa** mediante un *Forward-fill* estadístico para completar el horizonte completo del día.
+
 * **Aislamiento Sincrónico de Husos Horarios:** El backend procesa, une y calcula las matrices vectoriales estrictamente en tiempo **UTC** para blindar los cálculos contra cambios de horario estacional (DST). Justo antes del renderizado, el índice se convierte a la zona horaria nativa de la infraestructura (`US/Central`) y se remueve la etiqueta de zona para garantizar compatibilidad absoluta con Plotly.
 
 ---
@@ -51,8 +55,11 @@ La interfaz de usuario está diseñada bajo estándares SCADA, organizando los c
 
 ### 1. Panel de Control Principal e Inferencia de Futuro
 Presenta la sincronización maestra mediante un reloj digital sincronizado dinámicamente en **Hora Local de Texas (Central Time)** mediante JavaScript. Despliega un Grid de KPIs 4x2 simétrico:
+
 * **Fila de Demanda y Clima:** Controla la carga e impacto térmico real y proyectado.
+
 * **Fila de Solvencia Energética (Baterías Metafóricas):** Implementa indicadores dinámicos (`🔋 Reserva Actual` y `🪫 Mín Reserva 24h`) calculados en porcentaje de respaldo sobre la carga.
+
 * **Semáforos Sincronizados de Regla de Negocio:** La alerta de la Demanda Actual está indexada matemáticamente al porcentaje de la Reserva Actual (si la reserva cae por debajo del 20% o 13.75%, ambas tarjetas se encienden en naranja o rojo simultáneamente).
 
 > 🔋 **Reserva Actual (%)** = [(Capacidad Disponible Real - Demanda Real) / Demanda Real] * 100
@@ -70,12 +77,19 @@ Evalúa de forma retroactiva las últimas 24 horas comparando la curva real de l
 
 #### 📔 Diccionario de Control SCADA (Glosario de Métricas de Calidad):
 1. **📊 MAPE (Mean Absolute Percentage Error):** Mide la magnitud promedio del error en términos relativos (porcentuales). Es el indicador principal de la salud del modelo comercial.
+
 2. **📈 Max APE (Maximum Absolute Percentage Error):** Captura el porcentaje del peor error cometido en la jornada de 24 horas, identificando la hora de máxima vulnerabilidad del algoritmo.
+
 3. **🎯 MAE (Mean Absolute Error):** Expresa la desviación promedio directamente en volumen físico de potencia (**MW**), facilitando el entendimiento de la escala neta del error.
+
 4. **⚠️ Max AE (Maximum Absolute Error):** Registra el pico de desviación más severo del día en **MW**, sirviendo como métrica de tolerancia extrema para el despacho físico.
+
 5. **📉 RMSE (Root Mean Squared Error):** Al elevar los errores al cuadrado antes de promediar, esta métrica penaliza severamente las desviaciones grandes, siendo un excelente indicador de la estabilidad de la varianza.
+
 6. **⚖️ MBE (Mean Bias Error):** Registra la dirección del sesgo sistemático promedio en **MW**. Un valor positivo indica una subestimación de la carga (Riesgo de Desborde), mientras que un valor negativo expone una sobreestimación (Costos por Exceso de generación ociosa).
+
 7. **🔄 Skewness (Coeficiente de Asimetría):** Analiza la simetría de la distribución de los residuales. Funciona como un monitor de **Riesgo de Cola Pesada**, detectando si los errores atípicos más peligrosos tienden a ocurrir en los picos extremos de calor o en los valles de la madrugada.
+
 8. **🔮 R² Score (Coeficiente de Determinación):** Métrica macro ejecutiva que mide la proporción de la variabilidad real del mercado eléctrico que es capturada y explicada con éxito por las variables del LightGBM.
 
 ### 3. Gobernanza del Modelo e Interpretabilidad
@@ -97,6 +111,7 @@ El proceso de investigación y modelado se encuentra documentado de forma exhaus
 
 ### 🏆 Rendimiento del Modelo
 * **Fase de R&D (Validación Año Ciego 2025):** MAPE base de **3.11%**.
+
 * **Entorno de Producción (Telemetría en Vivo):** MAPE sostenido **< 2.0%** con una varianza explicada ($R^2$) de **0.97**.
 
 Estos resultados demuestran un ajuste termodinámico y autorregresivo excepcional, superando los benchmarks tradicionales de la industria para pronósticos de series temporales *day-ahead* (día en adelanto).
@@ -105,6 +120,7 @@ Estos resultados demuestran un ajuste termodinámico y autorregresivo excepciona
 
 ### Hallazgos Clave de Investigación:
 * **La Curva Térmica en U:** Se identificó una respuesta parabólica no lineal entre la carga y la temperatura promedio. La infraestructura se estresa significativamente por debajo de los **12°C** (encendido de calefacción eléctrica residencial) y de forma crítica por encima de los **34°C** (operación continua de compresores HVAC).
+
 * **Derivadas Térmicas:** La ingeniería de características demostró que la variable `temp_delta_24h` (tasa de cambio térmico respecto al día anterior) es el predictor con mayor cantidad de divisiones (*splits*) en las ramas del LightGBM, capturando con éxito el efecto de retención y acumulación de calor en las estructuras urbanas.
 
 <div align="center">
@@ -131,10 +147,12 @@ Todo sistema en producción real opera bajo restricciones de entorno. Para mante
 
 ### Limitaciones Actuales:
 1. **Reducción Meteorológica por Proxies:** El modelo utiliza los centros climáticos de Houston, dallas y Austin como representación del estado completo. Variaciones climatológicas severas en nodos de alta densidad industrial rural (como los distritos petroleros del Permian Basin) podrían inducir microdesviaciones volumétricas.
+
 2. **Naturaleza Determinista:** Actualmente el sistema genera un pronóstico puntual (*point forecast*). En momentos de estrés crítico de red, el despacho de carga se beneficia significativamente de esquemas probabilísticos que integren bandas de incertidumbre.
 
 ### Roadmap Técnico (Próximos Sprints):
 * **Inclusión de Generación Renovable Activa:** Integrar las curvas en tiempo real de capacidad eólica e hidroeléctrica de Texas como variables exógenas para migrar del modelado de carga bruta al pronóstico de **Demanda Neta**.
+
 * **Infraestructura de Reentrenamiento Automatizado (CI/CD):** Configurar un flujo de GitHub Actions que ejecute un script mensual automático de reentrenamiento, gatillado únicamente si el monitor del MAPE en producción se mantiene en terreno rojo durante más de 72 horas consecutivas.
 
 ---
