@@ -380,20 +380,20 @@ try:
                 # --- B. PIPELINE COMPETITIVO (NUEVO) ---
                 df_ercot_lf = load_forecast.copy()
                 
-                # Seteamos el índice de tiempo usando la columna real
+                # 1. Ajuste de índice
                 df_ercot_lf['Interval Start'] = pd.to_datetime(df_ercot_lf['Interval Start'])
                 df_ercot_lf.set_index('Interval Start', inplace=True)
                 
-                # 🌟 CORRECCIÓN MAESTRA: Filtramos 'System Total' en lugar de 'Load Forecast'
+                # 2. Resample y conversión a UTC
                 df_ercot_lf = df_ercot_lf[['System Total']].resample('h').mean()
-                
-                # Convertimos el índice de Texas (Central) a UTC naive para acoplar con tu backend
                 df_ercot_lf.index = df_ercot_lf.index.tz_convert('UTC').tz_localize(None)
                 
-                # Renombramos a la columna estandarizada de tu interfaz
-                df_ercot_lf.rename(columns={'System Total': 'ERCOT_Pred'}, inplace=True)
+                # 🌟 AJUSTE POR DESFASE: Desplazamos 1 hora hacia atrás para alinear con el inicio de hora (EIA)
+                # Si el modelo oficial parece "retrasado", desplazar 1 hora hacia atrás (shift -1) alinea los picos.
+                df_ercot_lf.index = df_ercot_lf.index + pd.Timedelta(hours=1)
                 
-                # Unimos con los resultados del pasado del LightGBM
+                # 3. Renombre y Join
+                df_ercot_lf.rename(columns={'System Total': 'ERCOT_Pred'}, inplace=True)
                 df_resultados_pasado = df_resultados_pasado.join(df_ercot_lf, how='left')
                 df_resultados_pasado['ERCOT_Pred'] = df_resultados_pasado['ERCOT_Pred'].ffill().bfill()
                 competencia_activa = True
