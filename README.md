@@ -147,7 +147,7 @@ Si deseas ejecutar este dashboard de forma local para desarrollo o auditorías, 
    ```bash
    git clone [https://github.com/DavidVaAc/ercot-load-forecasting.git](https://github.com/DavidVaAc/ercot-load-forecasting.git)
    cd ercot-load-forecasting
-```
+    ```
 
 2. **Instalar dependencias:**
     ```bash
@@ -157,7 +157,7 @@ Si deseas ejecutar este dashboard de forma local para desarrollo o auditorías, 
 
 
 3. **Configurar credenciales locales:**
-Crea una carpeta llamada `.streamlit/` y dentro de ella un archivo `secrets.toml`. Agrega tus API Keys correspondientes:
+    Crea una carpeta llamada `.streamlit/` y dentro de ella un archivo `secrets.toml`. Agrega tus API Keys correspondientes:
     ```toml
     EIA_API_KEY = "tu_clave_de_la_eia_aqui"
     VISUAL_CROSSING_KEY = "tu_clave_de_visual_crossing_aqui"
@@ -170,10 +170,6 @@ Crea una carpeta llamada `.streamlit/` y dentro de ella un archivo `secrets.toml
     streamlit run app.py
 
     ```
-
-
-
----
 
 ## 📁 Estructura del Repositorio
 
