@@ -315,15 +315,24 @@ try:
             ercot = gridstatus.Ercot()
             rt_conditions = ercot.get_real_time_system_conditions()
             capacity_forecast = ercot.get_capacity_forecast()
+            
+            # 🌟 CORRECCIÓN FLAMANTE: Calculamos fechas explícitas que Pandas sí sabe parsear
+            fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+            fecha_ayer = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            
+            # Pasamos los strings formateados de forma segura a la API
+            lf_ayer = ercot.get_load_forecast(date=fecha_ayer)
+            lf_hoy = ercot.get_load_forecast(date=fecha_hoy)
+            load_forecast = pd.concat([lf_ayer, lf_hoy]) 
 
-            # 🌟 REQUERIMIENTO: Extraemos la Demanda Actual Directamente de Gridstatus
+            # Extraemos la Demanda Actual Directamente de Gridstatus
             demanda_actual = float(rt_conditions['Actual System Demand'].iloc[0])
             capacity_live = float(rt_conditions['Total System Capacity excluding Ancillary Services'].iloc[0])
             gridstatus_exito = True
         except Exception as e:
             # Fallback seguro en caso de congestión de la API de ERCOT
             demanda_actual = float(y_past_real.iloc[-1])
-            capacity_live = 98000 # Proxy de capacidad disponible promedio de verano
+            capacity_live = 98000 
             st.sidebar.warning(f"API de ERCOT en tiempo real no disponible, usando fallback. Motivo: {e}")
 
         # --- 2. CÁLCULO DE VALORES CORE ---
@@ -338,6 +347,9 @@ try:
         # =====================================================================
         # 🛡️ CÁLCULO DE MÁRGENES DE RESERVA OPERATIVA
         # =====================================================================
+
+        competencia_activa = False
+
         if gridstatus_exito:
             try:
                 # Reserva actual calculada con datos homogéneos de Gridstatus
@@ -364,6 +376,27 @@ try:
                 # 🌟 REQUERIMIENTO: El mínimo real considerando toda la jornada predictiva
                 reserva_min_predicha = df_resultados_futuro['Reserva_Proyectada_Pct'].min()
                 reserva_min_pct = min(reserva_actual_pct, reserva_min_predicha)
+
+                # --- B. PIPELINE COMPETITIVO (NUEVO) ---
+                df_ercot_lf = load_forecast.copy()
+                
+                # Seteamos el índice de tiempo usando la columna real
+                df_ercot_lf['Interval Start'] = pd.to_datetime(df_ercot_lf['Interval Start'])
+                df_ercot_lf.set_index('Interval Start', inplace=True)
+                
+                # 🌟 CORRECCIÓN MAESTRA: Filtramos 'System Total' en lugar de 'Load Forecast'
+                df_ercot_lf = df_ercot_lf[['System Total']].resample('h').mean()
+                
+                # Convertimos el índice de Texas (Central) a UTC naive para acoplar con tu backend
+                df_ercot_lf.index = df_ercot_lf.index.tz_convert('UTC').tz_localize(None)
+                
+                # Renombramos a la columna estandarizada de tu interfaz
+                df_ercot_lf.rename(columns={'System Total': 'ERCOT_Pred'}, inplace=True)
+                
+                # Unimos con los resultados del pasado del LightGBM
+                df_resultados_pasado = df_resultados_pasado.join(df_ercot_lf, how='left')
+                df_resultados_pasado['ERCOT_Pred'] = df_resultados_pasado['ERCOT_Pred'].ffill().bfill()
+                competencia_activa = True
                 
             except Exception as e_proc:
                 gridstatus_exito = False
@@ -377,7 +410,7 @@ try:
             df_resultados_futuro['Reserva_Proyectada_MW'] = capacidad_segura_proxy - df_resultados_futuro['Demanda_Proyectada_MW']
             df_resultados_futuro['Reserva_Proyectada_Pct'] = (df_resultados_futuro['Reserva_Proyectada_MW'] / df_resultados_futuro['Demanda_Proyectada_MW']) * 100
 
-# =====================================================================
+        # =====================================================================
         # 🛡️ UNIFICACIÓN DE SEMÁFOROS NATIVOS (100% CONSISTENTES)
         # =====================================================================
 
@@ -594,239 +627,143 @@ try:
             
             st.plotly_chart(fig_fut, use_container_width=True)
         
-        # --- GRAFICA 2: CONTROL DE CALIDAD (DISEÑO SCADA SIMÉTRICO) ---
+        # --- GRAFICA 2: CONTROL DE CALIDAD Y BENCHMARKING (DISEÑO SCADA SIMÉTRICO) ---
         st.space()
         st.markdown("---")
-        st.subheader("🔄 Control de Calidad: Rendimiento del Modelo en las Últimas 24 Horas", anchor="control-calidad")
+        st.subheader("🔄 Benchmarking de Calidad: 💡LightGBM vs 🏢 Oficial ERCOT ISO (Últimas 24h)", anchor="control-calidad")
         st.space()
         
-        # --- CÁLCULO DE MÉTRICAS AVANZADAS DE ERROR ---
+        # --- CÁLCULO DE MÉTRICAS AVANZADAS DE ERROR (TU LIGHTGBM) ---
         errores = df_resultados_pasado['Real'] - df_resultados_pasado['Predicho']
-        
         live_mape = np.mean(np.abs(errores / df_resultados_pasado['Real'])) * 100
-        live_max_ape = np.max(np.abs(errores / df_resultados_pasado['Real'])) * 100
-        
         live_mae = np.mean(np.abs(errores))
-        live_max_ae = np.max(np.abs(errores))
-        
-        live_rmse = np.sqrt(np.mean(errores ** 2))
-        live_mbe = np.mean(errores) # Sesgo Medio (Bias)
-
-        # --- CÁLCULOS PARA EL RENGLÓN 4 DE CALIDAD ---
-
-        # 2. Coeficiente de Skewness (Asimetría de errores)
+        live_mbe = np.mean(errores) 
         live_skew = ((errores/errores.std())**3).mean()
 
-        # 3. Coeficiente R² (Varianza explicada)        
-        live_r2 = r2_score(df_resultados_pasado['Real'], df_resultados_pasado['Predicho'])
+        # --- CÁLCULOS COMPETITIVOS (ERCOT ISO) ---
+        if competencia_activa:
+            ercot_errores = df_resultados_pasado['Real'] - df_resultados_pasado['ERCOT_Pred']
+            ercot_mape = np.mean(np.abs(ercot_errores / df_resultados_pasado['Real'])) * 100
+            ercot_mae = np.mean(np.abs(ercot_errores))
+            ercot_mbe = np.mean(ercot_errores)
+            ercot_skew = ((ercot_errores/ercot_errores.std())**3).mean()
+        else:
+            ercot_mape = ercot_mae = ercot_mbe = ercot_skew = 0.0
         
         # =====================================================================
-        # 📊 SEMÁFOROS DE CALIDAD UNIFICADOS (ESCALA INVARIANTE)
+        # 📊 MOTOR DE SEMÁFOROS SIMÉTRICOS (LIGHTGBM VS ERCOT ISO)
         # =====================================================================
-        
-        # --- 1. BLOQUE DE ERRORES PROMEDIO (MAPE & MAE) ---
         BASELINE_MAPE = 3.11
-        mape_desviacion = live_mape - BASELINE_MAPE
-        
-        if mape_desviacion <= 0:
-            color_mape = "green"
-            delta_mape_texto = f"{mape_desviacion:.2f}% (Óptimo)"
-            
-            # Sincronización del MAE
-            col_mae = "green"
-            msg_mae = "Precisión Óptima"
-            
-        elif mape_desviacion <= 0.89: # Hasta 4% MAPE total
-            color_mape = "orange"
-            delta_mape_texto = f"+{mape_desviacion:.2f}% (Tolerancia)"
-            
-            # Sincronización del MAE
-            col_mae = "orange"
-            msg_mae = "Margen de Tolerancia"
-            
+
+        # --- 1. EVALUACIÓN DE ERRORES PROMEDIO (MAPE & MAE) ---
+        # Lógica para LightGBM
+        lgb_mape_dev = live_mape - BASELINE_MAPE
+        if lgb_mape_dev <= 0:
+            col_mape_lgb, col_mae_lgb, msg_mae_lgb = "green", "green", "Precisión Óptima"
+            msg_mape_lgb = f"{lgb_mape_dev:.2f}% (Óptimo)"
+        elif live_mape <= 4.0:
+            col_mape_lgb, col_mae_lgb, msg_mae_lgb = "orange", "orange", "Margen de Tolerancia"
+            msg_mape_lgb = f"+{lgb_mape_dev:.2f}% (Tolerancia)"
         else:
-            color_mape = "red"
-            delta_mape_texto = f"+{mape_desviacion:.2f}% (Degradación)"
-            
-            # Sincronización del MAE
-            col_mae = "red"
-            msg_mae = "Desviación Volumétrica Alta"
+            col_mape_lgb, col_mae_lgb, msg_mae_lgb = "red", "red", "Desviación Crítica"
+            msg_mape_lgb = f"+{lgb_mape_dev:.2f}% (Degradación)"
 
-
-        # --- 2. BLOQUE DE ERRORES EXTREMOS / PICOS (Max APE & Max AE) ---
-        if live_max_ape > 6.0:
-            col_max_ape = "red"
-            msg_max_ape = "Desviación Crítica"
-            
-            # Sincronización del Max AE
-            col_max_ae = "red"
-            msg_max_ae = "Desajuste Crítico de Carga"
-            
-        elif live_max_ape > 4.5:
-            col_max_ape = "orange"
-            msg_max_ape = "Pico de Error Alto"
-            
-            # Sincronización del Max AE
-            col_max_ae = "orange"
-            msg_max_ae = "Excursión de Error Moderada"
-            
+        # Lógica idéntica para ERCOT
+        iso_mape_dev = ercot_mape - BASELINE_MAPE
+        if iso_mape_dev <= 0:
+            col_mape_iso, col_mae_iso, msg_mae_iso = "green", "green", "Precisión Óptima"
+            msg_mape_iso = f"{iso_mape_dev:.2f}% (Óptimo)"
+        elif ercot_mape <= 4.0:
+            col_mape_iso, col_mae_iso, msg_mae_iso = "orange", "orange", "Margen de Tolerancia"
+            msg_mape_iso = f"+{iso_mape_dev:.2f}% (Tolerancia)"
         else:
-            col_max_ape = "green"
-            msg_max_ape = "Pico Bajo Control"
-            
-            # Sincronización del Max AE
-            col_max_ae = "green"
-            msg_max_ae = "Pico Absoluto Seguro"
+            col_mape_iso, col_mae_iso, msg_mae_iso = "red", "red", "Desviación Crítica"
+            msg_mape_iso = f"+{iso_mape_dev:.2f}% (Degradación)"
 
-        # --- RENGLÓN 3: DELTAS DE VARIANZA Y SESGO ---
-        # RMSE (Sensibilidad a errores grandes)
-        # Si el RMSE se aleja mucho del MAE, significa que hubo errores aislados gigantescos
-        relacion_rmse_mae = live_rmse / (live_mae if live_mae > 0 else 1)
-        if relacion_rmse_mae > 1.5:
-            # Caso crítico: El RMSE se disparó por un error puntual masivo
-            msg_rmse, col_rmse = "Outliers Críticos (Falla Puntual)", "red"
-        elif relacion_rmse_mae > 1.3:
-            # Caso moderado: Pérdida de homogeneidad en los errores
-            msg_rmse, col_rmse = "Presencia de Outliers", "orange"
+
+        # --- 2. EVALUACIÓN DE SESGO MEDIO (MBE) ---
+        # Lógica para LightGBM
+        if abs(live_mbe) > 3000:
+            col_mbe_lgb = "red"
+            msg_mbe_lgb = "Subestimación Crítica" if live_mbe > 0 else "Sobreestimación Crítica"
+        elif abs(live_mbe) > 1200:
+            col_mbe_lgb = "orange"
+            msg_mbe_lgb = "Sesgo: Subestimando" if live_mbe > 0 else "Sesgo: Sobreestimando"
         else:
-            # Caso óptimo: Errores distribuidos normalmente cerca de 1.25
-            msg_rmse, col_rmse = "Errores Homogéneos", "green"
-            
-        # --- CALIBRACIÓN DE SESGO MEDIO (MBE) TRICOLOR ---
-        abs_mbe = abs(live_mbe)
-        
-        if abs_mbe > 3000:
-            # 🚨 CASO CRÍTICO: Desajuste estructural masivo
-            color_mbe = "red"
-            msg_mbe = "Subestimación Crítica" if live_mbe > 0 else "Sobreestimación Crítica"
-            
-        elif abs_mbe > 1200:
-            # 🔸 CASO MODERADO: Deriva o desfase estacional
-            color_mbe = "orange"
-            msg_mbe = "Sesgo: Subestimando Demanda" if live_mbe > 0 else "Sesgo: Sobreestimando Demanda"
-            
+            col_mbe_lgb, msg_mbe_lgb = "green", "Alineación Óptima"
+
+        # Lógica idéntica para ERCOT
+        if abs(ercot_mbe) > 3000:
+            col_mbe_iso = "red"
+            msg_mbe_iso = "Subestimación Crítica" if ercot_mbe > 0 else "Sobreestimación Crítica"
+        elif abs(ercot_mbe) > 1200:
+            col_mbe_iso = "orange"
+            msg_mbe_iso = "Sesgo: Subestimando" if ercot_mbe > 0 else "Sesgo: Sobreestimando"
         else:
-            # ✅ CASO ÓPTIMO: El modelo está perfectamente balanceado
-            color_mbe = "green"
-            msg_mbe = "Alineación Óptima (Sesgo Mínimo)"
+            col_mbe_iso, msg_mbe_iso = "green", "Alineación Óptima"
 
 
-        # Semáforo Skewness (Buscamos que sea cercano a 0, error normal)
+        # --- 3. EVALUACIÓN DE SKEWNESS (PERFIL DE RIESGO DE COLA PESADA) ---
+        # Lógica para LightGBM
         if abs(live_skew) < 0.5:
-            msg_skew, col_skew = "Distribución Simétrica", "green"
+            msg_skew_lgb, col_skew_lgb = "Distribución Simétrica", "green"
         elif live_skew >= 0.5:
-            msg_skew, col_skew = "Atípicos por Subestimación", "orange"
+            msg_skew_lgb, col_skew_lgb = "Picos Subestimados", "orange"
         else:
-            msg_skew, col_skew = "Atípicos por Sobreestimación", "orange"
+            msg_skew_lgb, col_skew_lgb = "Valles Excedidos", "orange"
 
-        # Semáforo R²
-        if live_r2 > 0.90:
-            msg_r2, col_r2 = "Ajuste Excelente", "green"
-        elif live_r2 > 0.75:
-            msg_r2, col_r2 = "Capacidad Aceptable", "orange"
+        # Lógica idéntica para ERCOT
+        if abs(ercot_skew) < 0.5:
+            msg_skew_iso, col_skew_iso = "Distribución Simétrica", "green"
+        elif ercot_skew >= 0.5:
+            msg_skew_iso, col_skew_iso = "Picos Subestimados", "orange"
         else:
-            msg_r2, col_r2 = "Desviación de Varianza", "red"
+            msg_skew_iso, col_skew_iso = "Valles Excedidos", "orange"
+
 
         # =====================================================================
-        # --- RENDERIZADO DEL LAYOUT EN ESPEJO ---
+        # --- RENDERIZADO DEL LAYOUT EN ESPEJO COMPETITIVO ---
         # =====================================================================
         past_col1, past_col2 = st.columns([1, 2.2])
 
-        # BLOQUE IZQUIERDO: MATRIZ DE ERRORES 3x2 (Alineación Forzada de Deltas)
         with past_col1:
-            st.markdown("#### ⚙️ Métricas de Calidad")
+            st.markdown("#### 🏆 Cuadro de Honor Industrial")
             st.write("")
             
-            # --- RENGLÓN 1: ERRORES PORCENTUALES ---
-            pr_c1, pr_c2 = st.columns(2)
-            with pr_c1:
-                st.metric(
-                    label="📊 MAPE", 
-                    value=f"{live_mape:.2f} %",
-                    delta=delta_mape_texto,
-                    delta_color=color_mape,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
-                )
-            with pr_c2:
-                st.metric(
-                    label="📈 Max APE", 
-                    value=f"{live_max_ape:.2f} %",
-                    delta=msg_max_ape,
-                    delta_color=col_max_ape,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
-                )
-            
-            st.write("")
-            
-            # --- RENGLÓN 2: ERRORES ABSOLUTOS (MW) ---
-            r2_pc1, r2_pc2 = st.columns(2)
-            with r2_pc1:
-                st.metric(
-                    label="🎯 MAE", 
-                    value=f"{live_mae:,.0f} MW".replace(",", " "),
-                    delta=msg_mae,
-                    delta_color=col_mae,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
-                )
-            with r2_pc2:
-                st.metric(
-                    label="⚠️ Max AE", 
-                    value=f"{live_max_ae:,.0f} MW".replace(",", " "),
-                    delta=msg_max_ae,
-                    delta_color=col_max_ae,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
-                )
+            # --- RENGLÓN 1: MAPE (PORCENTUAL CON DESVIACIÓN DEL BENCHMARK) ---
+            r1_c1, r1_c2 = st.columns(2)
+            with r1_c1:
+                # delta_color="inverse" hace que si la desviación es positiva (más error) se pinte rojo, y si es negativa (menos error) verde
+                st.metric(label="📊 MAPE (💡 LightGBM)", value=f"{live_mape:.2f} %", delta=msg_mape_lgb, delta_color="inverse")
+            with r1_c2:
+                st.metric(label="📊 MAPE (🏢 Oficial ISO)", value=f"{ercot_mape:.2f} %", delta=msg_mape_iso, delta_color="inverse")
+
+            # --- RENGLÓN 2: MAE (VOLUMEN EN MW) ---
+            r2_c1, r2_c2 = st.columns(2)
+            with r2_c1:
+                st.metric(label="🎯 MAE (💡 LightGBM)", value=f"{live_mae:,.0f} MW".replace(",", " "), delta=msg_mae_lgb, delta_color=col_mae_lgb, delta_arrow="off")
+            with r2_c2:
+                st.metric(label="🎯 MAE (🏢 Oficial ISO)", value=f"{ercot_mae:,.0f} MW".replace(",", " "), delta=msg_mae_iso, delta_color=col_mae_iso, delta_arrow="off")
                 
-            st.write("")
-            
-            # --- RENGLÓN 3: VARIANZA Y SESGO ---
-            r3_pc1, r3_pc2 = st.columns(2)
-            with r3_pc1:
-                st.metric(
-                    label="📉 RMSE", 
-                    value=f"{live_rmse:,.0f} MW".replace(",", " "),
-                    delta=msg_rmse,
-                    delta_color=col_rmse,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
-                )
-            with r3_pc2:
-                st.metric(
-                    label="⚖️ MBE", 
-                    value=f"{live_mbe:,.0f} MW".replace(",", " "),
-                    delta=msg_mbe,
-                    delta_color=color_mbe,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
-                )
+            # --- RENGLÓN 3: MBE (SESGO SISTEMÁTICO) ---
+            r3_c1, r3_c2 = st.columns(2)
+            with r3_c1:
+                st.metric(label="⚖️ MBE (💡 LightGBM)", value=f"{live_mbe:,.0f} MW".replace(",", " "), delta=msg_mbe_lgb, delta_color=col_mbe_lgb, delta_arrow="off")
+            with r3_c2:
+                st.metric(label="⚖️ MBE (🏢 Oficial ISO)", value=f"{ercot_mbe:,.0f} MW".replace(",", " "), delta=msg_mbe_iso, delta_color=col_mbe_iso, delta_arrow="off")
 
-                # --- RENGLÓN 4: ANÁLISIS ESTADÍSTICO AVANZADO ---
-            r4_pc1, r4_pc2 = st.columns(2)
-
-            with r4_pc1:
-                st.metric(
-                    label="🔮 R² Score", 
-                    value=f"{live_r2:.3f}",
-                    delta=msg_r2,
-                    delta_color=col_r2,
-                    delta_arrow="off"
-                )
-            with r4_pc2:
-                st.metric(
-                    label="🔄 Skewness", 
-                    value=f"{live_skew:.2f}",
-                    delta=msg_skew,
-                    delta_color=col_skew,
-                    delta_arrow="off"
-                )
-
-        # BLOQUE DERECHO: GRÁFICA HISTÓRICA REAL VS PREDICHO
-
-        # Ejemplo rápido para tus gráficos antes de Plotly:
+            # --- RENGLÓN 4: SKEWNESS (RIESGO DE COLA PESADA) ---
+            r4_c1, r4_c2 = st.columns(2)
+            with r4_c1:
+                st.metric(label="🔄 Skewness (💡 LightGBM)", value=f"{live_skew:.2f}", delta=msg_skew_lgb, delta_color=col_skew_lgb, delta_arrow="off")
+            with r4_c2:
+                st.metric(label="🔄 Skewness (🏢 Oficial ISO)", value=f"{ercot_skew:.2f}", delta=msg_skew_iso, delta_color=col_skew_iso, delta_arrow="off")
+        # BLOQUE DERECHO: GRÁFICA HISTÓRICA TRIPLE TRAZO
         df_plot2 = df_resultados_pasado.copy()
-        # Convertimos el índice de UTC a hora de Texas y lo hacemos limpio (naive)
         df_plot2.index = df_plot2.index.tz_localize('UTC').tz_convert('US/Central').tz_localize(None)
 
         with past_col2:
-            st.markdown("#### 📊 Desempeño Histórico (Últimas 24h)")
+            st.markdown("#### 📊 Desempeño Histórico Multi-Modelo (Últimas 24h)")
             
             fig_past = make_subplots(specs=[[{"secondary_y": True}]])
             
@@ -837,10 +774,19 @@ try:
             )
             fig_past.add_trace(
                 go.Scatter(x=df_plot2.index, y=df_plot2['Predicho'], 
-                           mode='lines+markers', name='Predicción Lgbm (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
+                           mode='lines+markers', name='Predicción 💡 LGBM (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
                 secondary_y=False
             )
-            # 🌟 CORREGIDO: Consumimos la columna correcta de temperatura histórica
+            
+            # 🌟 NUEVO TRAZO: El Pronóstico Oficial de ERCOT (Azul Eléctrico para contrastar)
+            if competencia_activa:
+                fig_past.add_trace(
+                    go.Scatter(x=df_plot2.index, y=df_plot2['ERCOT_Pred'], 
+                               mode='lines', name='Predicción 🏢 Oficial ISO', 
+                               line=dict(color='#00D2FF', width=2, dash='longdash')),
+                    secondary_y=False
+                )
+                
             fig_past.add_trace(
                 go.Scatter(x=df_plot2.index, y=df_plot2['texas_avg_temp'], 
                            mode='lines', name='Temp Real (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
@@ -850,7 +796,6 @@ try:
             fig_past.update_layout(
                 template="plotly_dark", 
                 margin=dict(l=10, r=60, t=25, b=10), 
-                # 🌟 ACTUALIZADO: El eje X ahora refleja la hora de Texas de forma consistente
                 xaxis_title="Fecha y Hora (Texas CT)", 
                 hovermode="x unified",
                 legend=dict(
@@ -865,6 +810,7 @@ try:
             fig_past.update_yaxes(title_text="Temperatura (°C)", secondary_y=True, showgrid=False)
             
             st.plotly_chart(fig_past, use_container_width=True)
+
         # =====================================================================
         # 📊 SECCIÓN: INTERPRETABILIDAD Y DIAGNÓSTICO EJECUTIVO DEL MODELO
         # =====================================================================
