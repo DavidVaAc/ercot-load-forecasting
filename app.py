@@ -524,7 +524,7 @@ try:
             r4_c1, r4_c2 = st.columns(2)
             with r4_c1:
                 st.metric(
-                    label="🛡️ Reserva Actual",
+                    label="🔋 Reserva Actual",
                     value=f"{reserva_actual_pct:.1f} %",
                     delta=msg_res_act,
                     delta_color=col_res_act,
@@ -532,7 +532,7 @@ try:
                 )
             with r4_c2:
                 st.metric(
-                    label="📉 Mín Reserva (24h)",
+                    label="🪫 Mín Reserva (24h)",
                     value=f"{reserva_min_pct:.1f} %",
                     delta=msg_res_min,
                     delta_color=col_res_min,
