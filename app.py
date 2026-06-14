@@ -623,48 +623,62 @@ try:
         live_r2 = r2_score(df_resultados_pasado['Real'], df_resultados_pasado['Predicho'])
         
         # =====================================================================
-        # 📊 CALIBRACIÓN DE SEMÁFOROS Y DELTAS (SIMETRÍA DE FILAS)
+        # 📊 SEMÁFOROS DE CALIDAD UNIFICADOS (ESCALA INVARIANTE)
         # =====================================================================
         
-        # --- RENGLÓN 1: DELTAS PORCENTUALES ---
-        # MAPE (vs Benchmark)
+        # --- 1. BLOQUE DE ERRORES PROMEDIO (MAPE & MAE) ---
         BASELINE_MAPE = 3.11
         mape_desviacion = live_mape - BASELINE_MAPE
         
         if mape_desviacion <= 0:
             color_mape = "green"
             delta_mape_texto = f"{mape_desviacion:.2f}% (Óptimo)"
+            
+            # Sincronización del MAE
+            col_mae = "green"
+            msg_mae = "Precisión Óptima"
+            
         elif mape_desviacion <= 0.89: # Hasta 4% MAPE total
             color_mape = "orange"
             delta_mape_texto = f"+{mape_desviacion:.2f}% (Tolerancia)"
+            
+            # Sincronización del MAE
+            col_mae = "orange"
+            msg_mae = "Margen de Tolerancia"
+            
         else:
             color_mape = "red"
             delta_mape_texto = f"+{mape_desviacion:.2f}% (Degradación)"
             
-        # Max APE (Peor escenario en porcentaje)
-        if live_max_ape > 6.0:
-            msg_max_ape, col_max_ape = "Desviación Crítica", "red"
-        elif live_max_ape > 4.5:
-            msg_max_ape, col_max_ape = "Pico de Error Alto", "orange"
-        else:
-            msg_max_ape, col_max_ape = "Pico Bajo Control", "green"
+            # Sincronización del MAE
+            col_mae = "red"
+            msg_mae = "Desviación Volumétrica Alta"
 
-        # --- RENGLÓN 2: DELTAS DE MAGNITUD (MW) ---
-        # MAE Promedio (Basado en tolerancia operativa de volumen)
-        if live_mae > 2200:
-            msg_mae, col_mae = "Desviación Volumétrica Alta", "red"
-        elif live_mae > 1500:
-            msg_mae, col_mae = "Margen de Tolerancia", "orange"
-        else:
-            msg_mae, col_mae = "Precisión Óptima", "green"
+
+        # --- 2. BLOQUE DE ERRORES EXTREMOS / PICOS (Max APE & Max AE) ---
+        if live_max_ape > 6.0:
+            col_max_ape = "red"
+            msg_max_ape = "Desviación Crítica"
             
-        # Max AE (El error más grande del día en Megavatios)
-        if live_max_ae > 4500:
-            msg_max_ae, col_max_ae = "Desajuste Crítico de Carga", "red"
-        elif live_max_ae > 3000:
-            msg_max_ae, col_max_ae = "Excursión de Error Moderada", "orange"
+            # Sincronización del Max AE
+            col_max_ae = "red"
+            msg_max_ae = "Desajuste Crítico de Carga"
+            
+        elif live_max_ape > 4.5:
+            col_max_ape = "orange"
+            msg_max_ape = "Pico de Error Alto"
+            
+            # Sincronización del Max AE
+            col_max_ae = "orange"
+            msg_max_ae = "Excursión de Error Moderada"
+            
         else:
-            msg_max_ae, col_max_ae = "Pico Absoluto Seguro", "green"
+            col_max_ape = "green"
+            msg_max_ape = "Pico Bajo Control"
+            
+            # Sincronización del Max AE
+            col_max_ae = "green"
+            msg_max_ae = "Pico Absoluto Seguro"
 
         # --- RENGLÓN 3: DELTAS DE VARIANZA Y SESGO ---
         # RMSE (Sensibilidad a errores grandes)
