@@ -1,6 +1,8 @@
 streamlit
-lightgbm
 pandas
 numpy
-plotly
+lightgbm
+scikit-learn
+gridstatus
 requests
+plotly
