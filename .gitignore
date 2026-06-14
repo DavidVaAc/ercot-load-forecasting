@@ -18,3 +18,6 @@ env/
 images/corr:matrix.png
 images/feature_importance.png
 images/fi_pie.png
+
+# Cuaderno de pruebas
+notes.ipynb

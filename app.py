@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import lightgbm as lgb
+from sklearn.metrics import r2_score
+import gridstatus
 import requests
 import time
 import os
@@ -245,25 +247,32 @@ st.markdown("Dashboard de MLOps con arquitectura redundante para el pronóstico 
 # 🕒 RELOJ UTC EN VIVO EN UN CONTENEDOR SEGURO
 html_reloj = """
 <div style="background-color: #1a1a1a; padding: 15px; border-radius: 8px; border: 1px solid #2d2d2d; text-align: center;">
-    <p style="margin: 0; color: #777; font-size: 11px; font-weight: bold; letter-spacing: 1.5px; font-family: sans-serif;">HORA OPERATIVA DE LA RED (UTC)</p>
-    <p id="utc-live-clock" style="margin: 5px 0 0 0; color: #00ffcc; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(0,255,204,0.3);">Sincronizando reloj...</p>
+    <p style="margin: 0; color: #777; font-size: 11px; font-weight: bold; letter-spacing: 1.5px; font-family: sans-serif;">HORA OPERATIVA DE LA RED (TEXAS CT)</p>
+    <p id="texas-live-clock" style="margin: 5px 0 0 0; color: #00ffcc; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(0,255,204,0.3);">Sincronizando telemetría...</p>
 </div>
 
 <script>
-    function updateUTClock() {
+    function updateTexasClock() {
         const now = new Date();
-        const year = now.getUTCFullYear();
-        const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(now.getUTCDate()).padStart(2, '0');
-        const hours = String(now.getUTCHours()).padStart(2, '0');
-        const minutes = String(now.getUTCMinutes()).padStart(2, '0');
-        const seconds = String(now.getUTCSeconds()).padStart(2, '0');
         
-        const timeString = `${year}-${month}-${day} | ${hours}:${minutes}:${seconds} UTC`;
-        document.getElementById('utc-live-clock').innerText = timeString;
+        // Usamos el locale 'sv-SE' (Suecia) porque da el formato estándar ISO YYYY-MM-DD HH:mm:ss de forma nativa
+        const formatter = new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'America/Chicago',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        
+        // Formateamos y estilizamos para mantener tu diseño limpio
+        const timeString = formatter.format(now).replace(" ", " | ") + " CT";
+        document.getElementById('texas-live-clock').innerText = timeString;
     }
-    setInterval(updateUTClock, 1000);
-    updateUTClock();
+    setInterval(updateTexasClock, 1000);
+    updateTexasClock();
 </script>
 """
 
@@ -286,18 +295,39 @@ try:
     if len(X_live_future) == 0 or len(X_live_past) == 0:
         st.warning("Alineando flujos de datos temporales... Intenta recargar la página en unos segundos.")
     else:
-        # Ejecutar inferencias matemáticas y cálculos de soporte para el dashboard
+        # 1. Ejecutar inferencias matemáticas del modelo predictivo
         predictions_future = model.predict(X_live_future)
         df_resultados_futuro = pd.DataFrame(index=X_live_future.index)
         df_resultados_futuro['Demanda_Proyectada_MW'] = predictions_future
+        df_resultados_futuro['texas_avg_temp'] = X_live_future['texas_avg_temp']
         
         predictions_past = model.predict(X_live_past)
         df_resultados_pasado = pd.DataFrame(index=X_live_past.index)
         df_resultados_pasado['Real'] = y_past_real
         df_resultados_pasado['Predicho'] = predictions_past
+        df_resultados_pasado['texas_avg_temp'] = X_live_past['texas_avg_temp']
 
-        # --- 1. CÁLCULO DE VALORES CORE ---
-        demanda_actual = y_past_real.iloc[-1]
+        # =====================================================================
+        # 🔌 TELEMETRÍA EN TIEMPO REAL (GRIDSTATUS API) - EXTRACCIÓN TEMPRANA
+        # =====================================================================
+        gridstatus_exito = False
+        try:
+            ercot = gridstatus.Ercot()
+            rt_conditions = ercot.get_real_time_system_conditions()
+            capacity_forecast = ercot.get_capacity_forecast()
+
+            # 🌟 REQUERIMIENTO: Extraemos la Demanda Actual Directamente de Gridstatus
+            demanda_actual = float(rt_conditions['Actual System Demand'].iloc[0])
+            capacity_live = float(rt_conditions['Total System Capacity excluding Ancillary Services'].iloc[0])
+            gridstatus_exito = True
+        except Exception as e:
+            # Fallback seguro en caso de congestión de la API de ERCOT
+            demanda_actual = float(y_past_real.iloc[-1])
+            capacity_live = 98000 # Proxy de capacidad disponible promedio de verano
+            st.sidebar.warning(f"API de ERCOT en tiempo real no disponible, usando fallback. Motivo: {e}")
+
+        # --- 2. CÁLCULO DE VALORES CORE ---
+        # (demanda_actual ya está unificada y validada arriba)
         pico_max = df_resultados_futuro['Demanda_Proyectada_MW'].max()
         pico_min = df_resultados_futuro['Demanda_Proyectada_MW'].min()
         
@@ -305,40 +335,62 @@ try:
         temp_max_pred = X_live_future['texas_avg_temp'].max()
         temp_min_pred = X_live_future['texas_avg_temp'].min()
 
-        # --- 2. SEMÁFOROS NATIVOS (FILA 1: DEMANDA) ---
-        # Demanda Actual
-        if demanda_actual > 88000:
-            msg_dem_act, col_dem_act = "Estrés Crítico", "red"
-        elif demanda_actual > 75000:
-            msg_dem_act, col_dem_act = "Carga Moderada", "orange"
-        else:
-            msg_dem_act, col_dem_act = "Operación Estable", "green"
+        # =====================================================================
+        # 🛡️ CÁLCULO DE MÁRGENES DE RESERVA OPERATIVA
+        # =====================================================================
+        if gridstatus_exito:
+            try:
+                # Reserva actual calculada con datos homogéneos de Gridstatus
+                reserva_actual_pct = ((capacity_live - demanda_actual) / demanda_actual) * 100
+                
+                # Sincronización del pronóstico horario
+                df_cap_hourly = capacity_forecast.copy()
+                df_cap_hourly['Interval Start'] = pd.to_datetime(df_cap_hourly['Interval Start'])
+                df_cap_hourly.set_index('Interval Start', inplace=True)
+                df_cap_hourly = df_cap_hourly[['Available Capacity']].resample('h').mean()
+                df_cap_hourly.index = df_cap_hourly.index.tz_convert('UTC').tz_localize(None)
+                
+                # Unimos con los resultados futuros de nuestro LightGBM
+                df_resultados_futuro = df_resultados_futuro.join(df_cap_hourly, how='left')
+                
+                # 🌟 REQUERIMIENTO CRÍTICO: Rellenar el futuro lejano para evaluar las 24 horas completas
+                # Arrastramos la última capacidad conocida en el día
+                df_resultados_futuro['Available Capacity'] = df_resultados_futuro['Available Capacity'].ffill().fillna(capacity_live)
+                
+                # Cálculos vectoriales de las curvas de reserva
+                df_resultados_futuro['Reserva_Proyectada_MW'] = df_resultados_futuro['Available Capacity'] - df_resultados_futuro['Demanda_Proyectada_MW']
+                df_resultados_futuro['Reserva_Proyectada_Pct'] = (df_resultados_futuro['Reserva_Proyectada_MW'] / df_resultados_futuro['Demanda_Proyectada_MW']) * 100
+                
+                # 🌟 REQUERIMIENTO: El mínimo real considerando toda la jornada predictiva
+                reserva_min_predicha = df_resultados_futuro['Reserva_Proyectada_Pct'].min()
+                reserva_min_pct = min(reserva_actual_pct, reserva_min_predicha)
+                
+            except Exception as e_proc:
+                gridstatus_exito = False
+                st.sidebar.error(f"Error en procesamiento de curvas de reserva: {e_proc}")
 
-        # Máxima Demanda Proyectada
-        if pico_max > 92000:
-            msg_dem_max, col_dem_max = "Riesgo de Apagón", "red"
-        elif pico_max > 82000:
-            msg_dem_max, col_dem_max = "Carga Alta Proyectada", "orange"
-        else:
-            msg_dem_max, col_dem_max = "Margen Seguro", "green"
+        if not gridstatus_exito:
+            # Fallback robusto en espejo si la API se cae por completo
+            capacidad_segura_proxy = 98000
+            reserva_actual_pct = ((capacidad_segura_proxy - demanda_actual) / demanda_actual) * 100
+            reserva_min_pct = ((capacidad_segura_proxy - pico_max) / pico_max) * 100
+            df_resultados_futuro['Reserva_Proyectada_MW'] = capacidad_segura_proxy - df_resultados_futuro['Demanda_Proyectada_MW']
+            df_resultados_futuro['Reserva_Proyectada_Pct'] = (df_resultados_futuro['Reserva_Proyectada_MW'] / df_resultados_futuro['Demanda_Proyectada_MW']) * 100
 
-        # Mínima Demanda Proyectada (Valle de carga)
-        if pico_min < 32000:
-            msg_dem_min, col_dem_min = "Valle Crítico (Exceso Gen)", "red"
-        elif pico_min < 38000:
-            msg_dem_min, col_dem_min = "Valle Bajo (Ajustar Base)", "orange"
-        else:
-            msg_dem_min, col_dem_min = "Valle Estable", "green"
+# =====================================================================
+        # 🛡️ UNIFICACIÓN DE SEMÁFOROS NATIVOS (100% CONSISTENTES)
+        # =====================================================================
 
-
-        # --- 3. SEMÁFOROS NATIVOS (FILA 2: TEMPERATURA) ---
+        # --- 1. SEMÁFOROS DE TEMPERATURA (SE MANTIENEN POR SU PROPIA NATURALEZA) ---
         # Temperatura Actual
         if temp_actual > 35.0:
             msg_tmp_act, col_tmp_act = "Calor Extremo (HVAC)", "red"
         elif temp_actual < 4.0:
-            msg_tmp_act, col_tmp_act = "Estrés por Frío", "blue"
+            msg_tmp_act, col_tmp_act = "Estrés por Frío", "purple"
         elif 12.0 <= temp_actual <= 26.0:
             msg_tmp_act, col_tmp_act = "Zona de Confort", "green"
+        elif 4.0 <= temp_actual < 12.0:
+            msg_tmp_act, col_tmp_act = "Transición Fría", "blue"
         else:
             msg_tmp_act, col_tmp_act = "Transición Térmica", "orange"
 
@@ -352,28 +404,64 @@ try:
 
         # Mínima Temperatura Proyectada
         if temp_min_pred < 4.0:
-            msg_tmp_min, col_tmp_min = "Helada / Riesgo Térmico", "blue"
+            msg_tmp_min, col_tmp_min = "Helada / Riesgo Térmico", "purple"
         elif temp_min_pred < 12.0:
-            msg_tmp_min, col_tmp_min = "Descenso Moderado", "orange"
+            msg_tmp_min, col_tmp_min = "Descenso Moderado", "blue"
         else:
             msg_tmp_min, col_tmp_min = "Suelo Térmico Seguro", "green"
 
 
-# --- 4. RENDERIZADO EN LA INTERFAZ (DISEÑO SCADA COMPACTO) ---
+        # --- 2. SEMÁFOROS SINCRONIZADOS: ESTADO ACTUAL (TIEMPO REAL) ---
+        # Vinculamos la gravedad de la Demanda Actual directamente al Margen de Reserva Actual
+        if reserva_actual_pct < 13.75:
+            msg_res_act, col_res_act = "Reserva Crítica (Alerta)", "red"
+            msg_dem_act, col_dem_act = "Estrés Crítico de Red", "red"
+        elif reserva_actual_pct < 20.0:
+            msg_res_act, col_res_act = "Reserva Moderada", "orange"
+            msg_dem_act, col_dem_act = "Carga Alta sobre Capacidad", "orange"
+        else:
+            msg_res_act, col_res_act = "Red Solvente (Segura)", "green"
+            msg_dem_act, col_dem_act = "Operación Estable", "green"
+
+
+        # --- 3. SEMÁFOROS SINCRONIZADOS: PRONÓSTICO 24H (MÁXIMOS Y MÍNIMOS) ---
+        # Sincronizamos el Pico Máximo de Demanda con la Mínima Reserva Proyectada del día
+        if reserva_min_pct < 13.75:
+            msg_res_min, col_res_min = "Riesgo de Apagón", "red"
+            msg_dem_max, col_dem_max = "Demanda Supera Umbral", "red"
+        elif reserva_min_pct < 20.0:
+            msg_res_min, col_res_min = "Compromiso de Margen", "orange"
+            msg_dem_max, col_dem_max = "Pico de Carga Alto", "orange"
+        else:
+            msg_res_min, col_res_min = "Colchón Seguro", "green"
+            msg_dem_max, col_dem_max = "Margen Seguro", "green"
+
+
+        # --- 4. SEMÁFORO DE VALLE DE CARGA (INDEPENDIENTE) ---
+        # Se mantiene evaluando MW mínimos ya que el exceso de generación base es un problema puramente de carga
+        if pico_min < 32000:
+            msg_dem_min, col_dem_min = "Valle Crítico (Exceso Gen)", "red"
+        elif pico_min < 38000:
+            msg_dem_min, col_dem_min = "Valle Bajo (Ajustar Base)", "orange"
+        else:
+            msg_dem_min, col_dem_min = "Valle Estable", "green"
+
+
+        # =====================================================================
+        # --- RENDERIZADO EN LA INTERFAZ (DISEÑO GRID INDUSTRIAL 4x2) ---
+        # =====================================================================
         st.space()
         st.subheader("🕹️ Control Operativo y Demanda Proyectada (Próximas 24 Horas)", anchor="pronostico-24h")
         st.space()
-        # Separamos la pantalla en 2 bloques principales (Métricas Izquierda [1], Gráfico Derecha [2.2])
+        
         main_col1, main_col2 = st.columns([1, 2.2])
 
         # =====================================================================
-        # BLOQUE IZQUIERDO: MATRIZ DE KPIs 3x2 (Actual, Máximo, Mínimo)
+        # BLOQUE IZQUIERDO: MATRIZ DE KPIs 4x2 (Alineación Geométrica Perfecta)
         # =====================================================================
         with main_col1:
-
-            # 🌟 Título exclusivo para la sección de métricas
             st.subheader("🎛️ KPIs Operativos")
-            st.write("") # Espacio sutil de alineación técnica       
+            st.write("")      
 
             # --- RENGLÓN 1: ESTADO ACTUAL (TIEMPO REAL) ---
             r1_c1, r1_c2 = st.columns(2)
@@ -383,18 +471,16 @@ try:
                     value=f"{demanda_actual:,.0f} MW".replace(",", " "),
                     delta=msg_dem_act,
                     delta_color=col_dem_act,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                    delta_arrow="off"
                 )
             with r1_c2:
                 st.metric(
-                    label="🌡️ Temp Actual",
+                    label="🌡️ Temp Actual", # Se usará un emoji estándar limpio
                     value=f"{temp_actual:.1f} °C",
                     delta=msg_tmp_act,
                     delta_color=col_tmp_act,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                    delta_arrow="off"
                 )
-            
-            st.write("") # Micro-espacio estético entre bloques
             
             # --- RENGLÓN 2: ESCENARIO MÁXIMO (PRÓXIMAS 24H) ---
             r2_c1, r2_c2 = st.columns(2)
@@ -404,7 +490,7 @@ try:
                     value=f"{pico_max:,.0f} MW".replace(",", " "),
                     delta=msg_dem_max,
                     delta_color=col_dem_max,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                    delta_arrow="off"
                 )
             with r2_c2:
                 st.metric(
@@ -412,11 +498,9 @@ try:
                     value=f"{temp_max_pred:.1f} °C",
                     delta=msg_tmp_max,
                     delta_color=col_tmp_max,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                    delta_arrow="off"
                 )
                 
-            st.write("")
-            
             # --- RENGLÓN 3: ESCENARIO MÍNIMO (PRÓXIMAS 24H) ---
             r3_c1, r3_c2 = st.columns(2)
             with r3_c1:
@@ -425,7 +509,7 @@ try:
                     value=f"{pico_min:,.0f} MW".replace(",", " "),
                     delta=msg_dem_min,
                     delta_color=col_dem_min,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                    delta_arrow="off"
                 )
             with r3_c2:
                 st.metric(
@@ -433,51 +517,79 @@ try:
                     value=f"{temp_min_pred:.1f} °C",
                     delta=msg_tmp_min,
                     delta_color=col_tmp_min,
-                    delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
+                    delta_arrow="off"
+                )
+
+            # --- RENGLÓN 4: SOLVENCIA Y RESERVAS (MÉTRICA DE RIESGO ESTRATÉGICO) ---
+            r4_c1, r4_c2 = st.columns(2)
+            with r4_c1:
+                st.metric(
+                    label="🛡️ Reserva Actual",
+                    value=f"{reserva_actual_pct:.1f} %",
+                    delta=msg_res_act,
+                    delta_color=col_res_act,
+                    delta_arrow="off"
+                )
+            with r4_c2:
+                st.metric(
+                    label="📉 Mín Reserva (24h)",
+                    value=f"{reserva_min_pct:.1f} %",
+                    delta=msg_res_min,
+                    delta_color=col_res_min,
+                    delta_arrow="off"
                 )
 
         # =====================================================================
-        # BLOQUE DERECHO: VISUALIZACIÓN TEMPORAL CON DOBLE EJE
+        # BLOQUE DERECHO: VISUALIZACIÓN TRIPLE TRAZO CON DOBLE EJE Y
         # =====================================================================
-        with main_col2:
 
-            # 🌟 Título exclusivo para la sección del gráfico
+        # Ejemplo rápido para tus gráficos antes de Plotly:
+        df_plot = df_resultados_futuro.copy()
+        # Convertimos el índice de UTC a hora de Texas y lo hacemos limpio (naive)
+        df_plot.index = df_plot.index.tz_localize('UTC').tz_convert('US/Central').tz_localize(None)
+
+        with main_col2:
             st.subheader("📈 Demanda Proyectada e Impacto Térmico")
 
-            # Inicializamos el gráfico con doble eje Y
             fig_fut = make_subplots(specs=[[{"secondary_y": True}]])
             
-            # Eje Principal (Izquierdo): Demanda Proyectada
+            # 1. Carga Proyectada (Eje Izquierdo - MW)
             fig_fut.add_trace(
-                go.Scatter(x=df_resultados_futuro.index, y=df_resultados_futuro['Demanda_Proyectada_MW'], 
+                go.Scatter(x=df_plot.index, y=df_plot['Demanda_Proyectada_MW'], 
                            mode='lines+markers', name='Carga (MW)', line=dict(color='cyan', width=3)),
                 secondary_y=False
             )
             
-            # Eje Secundario (Derecho): Temperatura Proyectada
+            # 2. Margen de Reserva (Eje Izquierdo - MW)
             fig_fut.add_trace(
-                go.Scatter(x=X_live_future.index, y=X_live_future['texas_avg_temp'], 
+                go.Scatter(x=df_plot.index, y=df_plot['Reserva_Proyectada_MW'], 
+                           mode='lines', name='Reserva Disp. (MW)', line=dict(color='#E040FB', width=2, dash='longdash')),
+                secondary_y=False
+            )
+            
+            # 3. 🌟 CORREGIDO: Temperatura Proyectada (Eje Derecho - °C)
+            fig_fut.add_trace(
+                go.Scatter(x=df_plot.index, y=df_plot['texas_avg_temp'], 
                            mode='lines', name='Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
                 secondary_y=True
             )
             
-            # Estilización del layout doble eje (Leyenda a la Derecha)
+            # Ajustes estéticos finales de la leyenda externa a la derecha
             fig_fut.update_layout(
                 template="plotly_dark", 
-                # 🌟 Aumentamos r=60 para dar espacio a la leyenda en el borde derecho:
                 margin=dict(l=10, r=60, t=25, b=10), 
-                xaxis_title="Fecha y Hora (UTC)", 
+                # 🌟 ACTUALIZADO: Ahora el eje X explícitamente avisa que es la hora de Texas
+                xaxis_title="Fecha y Hora (Texas CT)", 
                 hovermode="x unified",
-                # 🌟 Nueva configuración de leyenda vertical externa:
                 legend=dict(
-                    orientation="v",    # "v" de vertical
-                    y=0.6,                # Alineada al tope superior
-                    x=1.05,             # Desplazada a la derecha del eje secundario
+                    orientation="v",
+                    y=0.7,
+                    x=1.05,
                     xanchor="left",
                     yanchor="top"
                 ) 
             )
-            fig_fut.update_yaxes(title_text="Energía (MW)", secondary_y=False)
+            fig_fut.update_yaxes(title_text="Potencia Eléctrica (MW)", secondary_y=False)
             fig_fut.update_yaxes(title_text="Temperatura (°C)", secondary_y=True, showgrid=False)
             
             st.plotly_chart(fig_fut, use_container_width=True)
@@ -499,6 +611,16 @@ try:
         
         live_rmse = np.sqrt(np.mean(errores ** 2))
         live_mbe = np.mean(errores) # Sesgo Medio (Bias)
+
+        # --- CÁLCULOS PARA EL RENGLÓN 4 DE CALIDAD ---
+        # 1. Calculamos los residuales históricos (Real - Predicho)
+        residuales = df_resultados_pasado['Real'] - df_resultados_pasado['Predicho']
+
+        # 2. Coeficiente de Skewness (Asimetría de errores)
+        live_skew = residuales.skew()
+
+        # 3. Coeficiente R² (Varianza explicada)        
+        live_r2 = r2_score(df_resultados_pasado['Real'], df_resultados_pasado['Predicho'])
         
         # =====================================================================
         # 📊 CALIBRACIÓN DE SEMÁFOROS Y DELTAS (SIMETRÍA DE FILAS)
@@ -564,7 +686,7 @@ try:
         if abs_mbe > 3000:
             # 🚨 CASO CRÍTICO: Desajuste estructural masivo
             color_mbe = "red"
-            msg_mbe = "Subestimación Crítica (Riesgo Apagón)" if live_mbe > 0 else "Sobreestimación Crítica (Desperdicio)"
+            msg_mbe = "Subestimación Crítica" if live_mbe > 0 else "Sobreestimación Crítica"
             
         elif abs_mbe > 1200:
             # 🔸 CASO MODERADO: Deriva o desfase estacional
@@ -574,7 +696,24 @@ try:
         else:
             # ✅ CASO ÓPTIMO: El modelo está perfectamente balanceado
             color_mbe = "green"
-            msg_mbe = "Alineación Óptima (Sin Sesgo)"
+            msg_mbe = "Alineación Óptima (Sesgo Mínimo)"
+
+
+        # Semáforo Skewness (Buscamos que sea cercano a 0, error normal)
+        if abs(live_skew) < 0.5:
+            msg_skew, col_skew = "Distribución Simétrica", "green"
+        elif live_skew >= 0.5:
+            msg_skew, col_skew = "Atípicos por Subestimación", "orange"
+        else:
+            msg_skew, col_skew = "Atípicos por Sobreestimación", "orange"
+
+        # Semáforo R²
+        if live_r2 > 0.90:
+            msg_r2, col_r2 = "Ajuste Excelente", "green"
+        elif live_r2 > 0.75:
+            msg_r2, col_r2 = "Capacidad Aceptable", "orange"
+        else:
+            msg_r2, col_r2 = "Desviación de Varianza", "red"
 
         # =====================================================================
         # --- RENDERIZADO DEL LAYOUT EN ESPEJO ---
@@ -598,7 +737,7 @@ try:
                 )
             with pr_c2:
                 st.metric(
-                    label="📈 Max APE (Pico)", 
+                    label="📈 Max APE", 
                     value=f"{live_max_ape:.2f} %",
                     delta=msg_max_ape,
                     delta_color=col_max_ape,
@@ -619,7 +758,7 @@ try:
                 )
             with r2_pc2:
                 st.metric(
-                    label="⚠️ Max AE (Pico)", 
+                    label="⚠️ Max AE", 
                     value=f"{live_max_ae:,.0f} MW".replace(",", " "),
                     delta=msg_max_ae,
                     delta_color=col_max_ae,
@@ -632,7 +771,7 @@ try:
             r3_pc1, r3_pc2 = st.columns(2)
             with r3_pc1:
                 st.metric(
-                    label="📉 RMSE (Varianza)", 
+                    label="📉 RMSE", 
                     value=f"{live_rmse:,.0f} MW".replace(",", " "),
                     delta=msg_rmse,
                     delta_color=col_rmse,
@@ -640,46 +779,72 @@ try:
                 )
             with r3_pc2:
                 st.metric(
-                    label="⚖️ Sesgo Medio (MBE)", 
+                    label="⚖️ MBE", 
                     value=f"{live_mbe:,.0f} MW".replace(",", " "),
                     delta=msg_mbe,
                     delta_color=color_mbe,
                     delta_arrow="off" # Sin flechas para el valor actual, solo color y texto de estado
                 )
 
+                # --- RENGLÓN 4: ANÁLISIS ESTADÍSTICO AVANZADO ---
+            r4_pc1, r4_pc2 = st.columns(2)
+
+            with r4_pc1:
+                st.metric(
+                    label="🔮 R² Score", 
+                    value=f"{live_r2:.3f}",
+                    delta=msg_r2,
+                    delta_color=col_r2,
+                    delta_arrow="off"
+                )
+            with r4_pc2:
+                st.metric(
+                    label="🔄 Skewness (Residuales)", 
+                    value=f"{live_skew:.2f}",
+                    delta=msg_skew,
+                    delta_color=col_skew,
+                    delta_arrow="off"
+                )
+
         # BLOQUE DERECHO: GRÁFICA HISTÓRICA REAL VS PREDICHO
+
+        # Ejemplo rápido para tus gráficos antes de Plotly:
+        df_plot2 = df_resultados_pasado.copy()
+        # Convertimos el índice de UTC a hora de Texas y lo hacemos limpio (naive)
+        df_plot2.index = df_plot2.index.tz_localize('UTC').tz_convert('US/Central').tz_localize(None)
+
         with past_col2:
             st.markdown("#### 📊 Desempeño Histórico (Últimas 24h)")
             
             fig_past = make_subplots(specs=[[{"secondary_y": True}]])
             
             fig_past.add_trace(
-                go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Real'], 
+                go.Scatter(x=df_plot2.index, y=df_plot2['Real'], 
                            mode='lines+markers', name='Real EIA (MW)', line=dict(color='#00FF00', width=3)),
                 secondary_y=False
             )
             fig_past.add_trace(
-                go.Scatter(x=df_resultados_pasado.index, y=df_resultados_pasado['Predicho'], 
+                go.Scatter(x=df_plot2.index, y=df_plot2['Predicho'], 
                            mode='lines+markers', name='Predicción Lgbm (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
                 secondary_y=False
             )
+            # 🌟 CORREGIDO: Consumimos la columna correcta de temperatura histórica
             fig_past.add_trace(
-                go.Scatter(x=X_live_past.index, y=X_live_past['texas_avg_temp'], 
+                go.Scatter(x=df_plot2.index, y=df_plot2['texas_avg_temp'], 
                            mode='lines', name='Temp Real (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
                 secondary_y=True
             )
             
             fig_past.update_layout(
                 template="plotly_dark", 
-                # 🌟 Aumentamos r=60 para dar espacio a la leyenda en el borde derecho:
                 margin=dict(l=10, r=60, t=25, b=10), 
-                xaxis_title="Fecha y Hora (UTC)", 
+                # 🌟 ACTUALIZADO: El eje X ahora refleja la hora de Texas de forma consistente
+                xaxis_title="Fecha y Hora (Texas CT)", 
                 hovermode="x unified",
-                # 🌟 Nueva configuración de leyenda vertical externa:
                 legend=dict(
-                    orientation="v",    # "v" de vertical
-                    y=0.6,                # Alineada al tope superior
-                    x=1.05,             # Desplazada a la derecha del eje secundario
+                    orientation="v",
+                    y=0.6,
+                    x=1.05,
                     xanchor="left",
                     yanchor="top"
                 ) 
