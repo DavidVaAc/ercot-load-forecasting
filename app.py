@@ -708,17 +708,17 @@ try:
         if abs(live_skew) < 0.5:
             msg_skew_lgb, col_skew_lgb = "Distribución Simétrica", "green"
         elif live_skew >= 0.5:
-            msg_skew_lgb, col_skew_lgb = "Picos Subestimados", "orange"
+            msg_skew_lgb, col_skew_lgb = "Errores Extremos por Subestimación", "orange"
         else:
-            msg_skew_lgb, col_skew_lgb = "Valles Excedidos", "orange"
+            msg_skew_lgb, col_skew_lgb = "Errores Extremos por Sobreestimación", "orange"
 
         # Lógica idéntica para ERCOT
         if abs(ercot_skew) < 0.5:
             msg_skew_iso, col_skew_iso = "Distribución Simétrica", "green"
         elif ercot_skew >= 0.5:
-            msg_skew_iso, col_skew_iso = "Picos Subestimados", "orange"
+            msg_skew_iso, col_skew_iso = "Errores Extremos por Subestimación", "orange"
         else:
-            msg_skew_iso, col_skew_iso = "Valles Excedidos", "orange"
+            msg_skew_iso, col_skew_iso = "Errores Extremos por Sobreestimación", "orange"
 
 
         # =====================================================================
