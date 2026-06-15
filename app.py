@@ -508,7 +508,7 @@ try:
                 )
             with r1_c2:
                 st.metric(
-                    label="🌡️ Temp Actual", # Se usará un emoji estándar limpio
+                    label="🌡️ Temperatura Actual", # Se usará un emoji estándar limpio
                     value=f"{temp_actual:.1f} °C",
                     delta=msg_tmp_act,
                     delta_color=col_tmp_act,
@@ -519,7 +519,7 @@ try:
             r2_c1, r2_c2 = st.columns(2)
             with r2_c1:
                 st.metric(
-                    label="🔺 Demanda Máx",
+                    label="🔺 Demanda Máxima",
                     value=f"{pico_max:,.0f} MW".replace(",", " "),
                     delta=msg_dem_max,
                     delta_color=col_dem_max,
@@ -527,7 +527,7 @@ try:
                 )
             with r2_c2:
                 st.metric(
-                    label="🔥 Máx Temp",
+                    label="🔥 Temperatura Máxima",
                     value=f"{temp_max_pred:.1f} °C",
                     delta=msg_tmp_max,
                     delta_color=col_tmp_max,
@@ -538,7 +538,7 @@ try:
             r3_c1, r3_c2 = st.columns(2)
             with r3_c1:
                 st.metric(
-                    label="🔻 Demanda Min",
+                    label="🔻 Demanda Mínima",
                     value=f"{pico_min:,.0f} MW".replace(",", " "),
                     delta=msg_dem_min,
                     delta_color=col_dem_min,
@@ -546,7 +546,7 @@ try:
                 )
             with r3_c2:
                 st.metric(
-                    label="❄️ Mín Temp",
+                    label="❄️ Temperatura Mínima",
                     value=f"{temp_min_pred:.1f} °C",
                     delta=msg_tmp_min,
                     delta_color=col_tmp_min,
@@ -565,7 +565,7 @@ try:
                 )
             with r4_c2:
                 st.metric(
-                    label="🪫 Mín Reserva",
+                    label="🪫 Reserva Mínima",
                     value=f"{reserva_min_pct:.1f} %",
                     delta=msg_res_min,
                     delta_color=col_res_min,
@@ -596,14 +596,14 @@ try:
             # 2. Margen de Reserva (Eje Izquierdo - MW)
             fig_fut.add_trace(
                 go.Scatter(x=df_plot.index, y=df_plot['Reserva_Proyectada_MW'], 
-                           mode='lines', name='🔋 Reserva Disp. (MW)', line=dict(color='#E040FB', width=2, dash='longdash')),
+                           mode='lines', name='🔋 Reserva Disponible (MW)', line=dict(color='#E040FB', width=2, dash='dash')),
                 secondary_y=False
             )
             
             # 3. 🌟 CORREGIDO: Temperatura Proyectada (Eje Derecho - °C)
             fig_fut.add_trace(
                 go.Scatter(x=df_plot.index, y=df_plot['texas_avg_temp'], 
-                           mode='lines', name='🌡️ Temperatura (°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
+                           mode='lines', name='🌡️ Pronóstico de Temperatura(°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
                 secondary_y=True
             )
             
@@ -831,7 +831,7 @@ try:
                 
             fig_past.add_trace(
                 go.Scatter(x=df_plot2.index, y=df_plot2['texas_avg_temp'], 
-                           mode='lines', name='🌡️ Temp Real (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
+                           mode='lines', name='🌡️ Temperatura (°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
                 secondary_y=True
             )
             
