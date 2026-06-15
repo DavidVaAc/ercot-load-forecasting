@@ -316,14 +316,14 @@ try:
             rt_conditions = ercot.get_real_time_system_conditions()
             capacity_forecast = ercot.get_capacity_forecast()
             
-            # 🌟 CORRECCIÓN FLAMANTE: Calculamos fechas explícitas que Pandas sí sabe parsear
-            fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-            fecha_ayer = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            # 🌟 SOLUCCIÓN SENIOR: Ignoramos el reloj del servidor.
+            # Convertimos el índice UTC de nuestro pasado a hora de Texas para ver qué días exige la EIA
+            ts_texas = df_resultados_pasado.index.tz_localize('UTC').tz_convert('US/Central')
+            fechas_necesitadas = ts_texas.strftime("%Y-%m-%d").unique().tolist()
             
-            # Pasamos los strings formateados de forma segura a la API
-            lf_ayer = ercot.get_load_forecast(date=fecha_ayer)
-            lf_hoy = ercot.get_load_forecast(date=fecha_hoy)
-            load_forecast = pd.concat([lf_ayer, lf_hoy]) 
+            # Descargamos dinámicamente solo los días que el dataframe del pasado está pidiendo
+            lista_forecasts = [ercot.get_load_forecast(date=f) for f in fechas_necesitadas]
+            load_forecast = pd.concat(lista_forecasts) 
 
             # Extraemos la Demanda Actual Directamente de Gridstatus
             demanda_actual = float(rt_conditions['Actual System Demand'].iloc[0])
