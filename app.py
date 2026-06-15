@@ -816,7 +816,7 @@ try:
             )
             fig_past.add_trace(
                 go.Scatter(x=df_plot2.index, y=df_plot2['Predicho'], 
-                           mode='lines+markers', name='💡 LGBM Predicción (MW)', line=dict(color='#FFA500', width=2, dash='dash')),
+                           mode='lines+markers', name='💡 LGBM Predicción (MW)', line=dict(color='cyan', width=2, dash='dash')),
                 secondary_y=False
             )
             
@@ -825,7 +825,7 @@ try:
                 fig_past.add_trace(
                     go.Scatter(x=df_plot2.index, y=df_plot2['ERCOT_Pred'], 
                                mode='lines+markers', name='🏢 Oficial ISO Predicción (MW)', 
-                               line=dict(color='#00D2FF', width=2, dash='dash')),
+                               line=dict(color='#FFA500', width=2, dash='dash')),
                     secondary_y=False
                 )
                 
