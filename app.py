@@ -596,14 +596,14 @@ try:
             # 2. Margen de Reserva (Eje Izquierdo - MW)
             fig_fut.add_trace(
                 go.Scatter(x=df_plot.index, y=df_plot['Reserva_Proyectada_MW'], 
-                           mode='lines', name='🔋 Reserva Disponible (MW)', line=dict(color='#E040FB', width=2, dash='dash')),
+                           mode='lines+markers', name='🔋 Reserva Disponible (MW)', line=dict(color='#E040FB', width=2, dash='dash')),
                 secondary_y=False
             )
             
             # 3. 🌟 CORREGIDO: Temperatura Proyectada (Eje Derecho - °C)
             fig_fut.add_trace(
                 go.Scatter(x=df_plot.index, y=df_plot['texas_avg_temp'], 
-                           mode='lines', name='🌡️ Pronóstico de Temperatura(°C)', line=dict(color='rgba(251, 140, 0, 0.6)', width=2, dash='dot')),
+                           mode='lines', name='🌡️ Pronóstico de Temperatura(°C)', line=dict(color='rgba(239, 83, 80, 0.5)', width=2, dash='dot')),
                 secondary_y=True
             )
             
