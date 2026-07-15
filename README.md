@@ -7,7 +7,6 @@
 [![Model](https://img.shields.io/badge/Model-LightGBM-ff69b4)](https://lightgbm.readthedocs.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
----
 
 ## 📈 Resumen del Proyecto
 
@@ -15,11 +14,10 @@ Este sistema orquesta flujos de datos asíncronos en tiempo real para predecir l
 
 El motor de inferencia combina variables meteorológicas granulares de los tres nodos de consumo más importantes (**Houston, Dallas y Austin**) procesados mediante un algoritmo de Gradient Boosting (LightGBM) optimizado para series temporales. Además, el sistema consume en vivo el SCADA oficial del estado para calcular la solvencia energética actual y futura.
 
----
 
 ## 🚀 Arquitectura de Ingesta y Resiliencia de Datos (Failover en Cascada)
 
-Para garantizar un Service Level Agreement (**SLA**) continuo de grado industrial, el backend implementa una arquitectura redundante de extracción de datos estructurada en tres canales independientes:
+Para garantizar un Service Level Agreement (**SLA**) continuo de grado industrial, el backend implementa una arquitectura redundante de extracción de datos climáticos estructurada en tres canales independientes:
 
 ### 📊 1. Canal de Carga Histórica (EIA API)
 El sistema extrae la demanda histórica real del estado a través de la API de la **U.S. Energy Information Administration (EIA)**. Este flujo es el corazón de la ingeniería de características, alimentando las variables autorregresivas del modelo (rezagos de 24h/48h/168h y medias móviles) y fungiendo como el *ground-truth* para el cálculo continuo de los residuales de calidad.
@@ -39,10 +37,11 @@ El sistema se integra directamente con los servidores de **ERCOT mediante la API
 
 #### 🛠️ Pipeline de Ingeniería de Datos en Producción:
 * **Downsampling de Granularidad:** La API de la red reporta datos cada 5 minutos. El backend ejecuta un remuestreo por hora (`.resample('h').mean()`) para acoplar la capacidad con la frecuencia horaria del modelo predictivo.
+
 * **Manejo de Asincronía Temporal (Left Join + Ffill):** Dado que ERCOT publica la capacidad proyectada únicamente para las horas inmediatas del ciclo operativo (creando ventanas flotantes de 4 a 6 horas), el sistema realiza un `left join` sobre las 24 horas predichas por el LightGBM y aplica **Inercia Operativa** mediante un *Forward-fill* estadístico para completar el horizonte completo del día.
+
 * **Aislamiento Sincrónico de Husos Horarios:** El backend procesa, une y calcula las matrices vectoriales estrictamente en tiempo **UTC** para blindar los cálculos contra cambios de horario estacional (DST). Justo antes del renderizado, el índice se convierte a la zona horaria nativa de la infraestructura (`US/Central`) y se remueve la etiqueta de zona para garantizar compatibilidad absoluta con Plotly.
 
----
 
 ## 🖥️ Interfaz Operativa y Matriz de Control de Riesgo
 
@@ -54,11 +53,13 @@ La interfaz de usuario está diseñada bajo estándares SCADA, organizando los c
 Presenta la sincronización maestra mediante un reloj digital sincronizado dinámicamente en **Hora Local de Texas (Central Time)** mediante JavaScript. Despliega un Grid de KPIs 4x2 simétrico:
 
 * **Fila de Demanda y Clima:** Controla la carga e impacto térmico real y proyectado.
+
 * **Fila de Solvencia Energética (Baterías Metafóricas):** Implementa indicadores dinámicos (`🔋 Reserva Actual` y `🪫 Mín Reserva 24h`) calculados en porcentaje de respaldo sobre la carga.
+
 * **Semáforos Sincronizados de Regla de Negocio:** La alerta de la Demanda Actual está indexada matemáticamente al porcentaje de la Reserva Actual (si la reserva cae por debajo del 20% o 13.75%, ambas tarjetas se encienden en naranja o rojo simultáneamente).
 
 > 🔋 **Reserva Actual (%)** = [(Capacidad Disponible Real - Demanda Real) / Demanda Real] * 100
->
+
 > 🪫 **Mín Reserva 24h (%)** = MIN([(Capacidad Disponible Predicha - Demanda Predicha) / Demanda Predicha] * 100)
 
 ![Panel Principal e Inferencia a Futuro](images/dashb_panel.png)
@@ -74,8 +75,10 @@ Para garantizar la neutralidad de la auditoría, ambos modelos son evaluados por
 
 #### 📔 Diccionario de Control SCADA (Los 4 Pilares Estadísticos):
 1. **📊 MAPE (Mean Absolute Percentage Error):** Mide la magnitud promedio del error en términos relativos. Su delta reactivo permite visualizar instantáneamente si el algoritmo mejora (verde) o degrada (rojo) el benchmark base (3.11%).
+
 2. **🎯 MAE (Mean Absolute Error):** Expresa la desviación promedio directamente en volumen físico de potencia (**MW**), exponiendo la magnitud real del costo por error en el despacho.
 3. **⚖️ MBE (Mean Bias Error):** Registra la dirección del sesgo sistemático promedio. Permite dictaminar si el modelo asume posiciones de riesgo por **Subestimación** (Riesgo de apagón) o **Sobreestimación** (Reserva ociosa injustificada).
+
 4. **🔄 Skewness (Coeficiente de Asimetría):** Analiza la simetría de la distribución de los residuales. Funciona como un monitor avanzado de **Riesgo de Cola Pesada**, advirtiendo de forma preventiva si los algoritmos fallan de manera desproporcionada durante los picos extremos de calor o los valles de madrugada.
 
 ### 3. Gobernanza del Modelo e Interpretabilidad
@@ -89,7 +92,6 @@ Desglosa la lógica interna de toma de decisiones del árbol del LightGBM para e
 </div>
 *Figura 4: Análisis de explicabilidad local y global mediante valores SHAP para auditar el impacto marginal de los predictores.*
 
----
 
 ## 🔬 Análisis Estadístico & Ciencia de Datos (R&D)
 
@@ -105,6 +107,7 @@ Estos resultados demuestran un ajuste termodinámico y autorregresivo excepciona
 
 ### Hallazgos Clave de Investigación:
 * **La Curva Térmica en U:** Se identificó una respuesta parabólica no lineal entre la carga y la temperatura promedio. La infraestructura se estresa significativamente por debajo de los **12°C** (encendido de calefacción eléctrica residencial) y de forma crítica por encima de los **34°C** (operación continua de compresores HVAC).
+
 * **Derivadas Térmicas:** La ingeniería de características demostró que la variable `temp_delta_24h` (tasa de cambio térmico respecto al día anterior) es el predictor con mayor cantidad de divisiones (*splits*) en las ramas del LightGBM, capturando con éxito el efecto de retención y acumulación de calor en las estructuras urbanas.
 
 <div align="center">
@@ -112,7 +115,6 @@ Estos resultados demuestran un ajuste termodinámico y autorregresivo excepciona
 </div>
 *Figura 5: Respuesta termodinámica del consumo de la red de Texas frente a oscilaciones de temperatura ambiente.*
 
----
 
 ## 🛠️ Tecnologías Utilizadas
 
@@ -121,9 +123,8 @@ Estos resultados demuestran un ajuste termodinámico y autorregresivo excepciona
 * **Telemetría e Ingesta:** Gridstatus API, Requests Gateway, REST (EIA & Open-Meteo)
 * **Zonas Horarias de Contenedor:** Pytz, Tzdata (Respaldo para Linux Unix-kernel mínimos)
 * **Visualización:** Plotly Graph Objects (Doble eje Y, layouts multi-trazo), Matplotlib, Seaborn
-* **UI & Frontend:** Streamlit, Streamlit Components (HTML5/JS Injection para Reloj SCADA)
+* **UI & Frontend:** Streamlit, Streamlit Components (HTML5/JS Injection para Reloj Digital)
 
----
 
 ## 🧠 Limitaciones del Modelo & Siguientes Pasos (Roadmap)
 
@@ -131,13 +132,13 @@ Todo sistema en producción real opera bajo restricciones de entorno. Para mante
 
 ### Limitaciones Actuales:
 1. **Reducción Meteorológica por Proxies:** El modelo utiliza los centros climáticos de Houston, Dallas y Austin como representación del estado completo. Variaciones climatológicas severas en nodos de alta densidad industrial rural (como los distritos petroleros del Permian Basin) podrían inducir microdesviaciones volumétricas.
+
 2. **Naturaleza Determinista:** Actualmente el sistema genera un pronóstico puntual (*point forecast*). En momentos de estrés crítico de red, el despacho de carga se beneficia significativamente de esquemas probabilísticos que integren bandas de incertidumbre.
 
 ### Roadmap Técnico (Próximos Sprints):
 * **Inclusión de Generación Renovable Activa:** Integrar las curvas en tiempo real de capacidad eólica e hidroeléctrica de Texas como variables exógenas para migrar del modelado de carga bruta al pronóstico de **Demanda Neta**.
-* **Infraestructura de Reentrenamiento Automatizado (CI/CD):** Configurar un flujo de GitHub Actions que ejecute un script mensual automático de reentrenamiento, gatillado únicamente si el monitor del MAPE en producción se mantiene en terreno rojo durante más de 72 horas consecutivas.
 
----
+* **Infraestructura de Reentrenamiento Automatizado (CI/CD):** Configurar un flujo de GitHub Actions que ejecute un script mensual automático de reentrenamiento, gatillado únicamente si el monitor del MAPE en producción se mantiene en terreno rojo durante más de 72 horas consecutivas.
 
 ## ⚙️ Instalación y Reproducción Local
 
@@ -145,7 +146,7 @@ Si deseas ejecutar este dashboard de forma local para desarrollo o auditorías, 
 
 1. **Clonar el repositorio:**
    ```bash
-   git clone [https://github.com/DavidVaAc/ercot-load-forecasting.git](https://github.com/DavidVaAc/ercot-load-forecasting.git)
+   git clone https://github.com/DavidVaAc/ercot-load-forecasting.git
    cd ercot-load-forecasting
     ```
 
@@ -153,29 +154,41 @@ Si deseas ejecutar este dashboard de forma local para desarrollo o auditorías, 
     * Para correr la app en producción:
     ```bash
     pip install -r requirements.txt
-
     ```
     * Para correr los notebooks de R&D:
     ```bash
     pip install -r requirements-dev.txt
-
     ```
-
 
 3. **Configurar credenciales locales:**
     Crea una carpeta llamada `.streamlit/` y dentro de ella un archivo `secrets.toml`. Agrega tus API Keys correspondientes:
     ```toml
     EIA_API_KEY = "tu_clave_de_la_eia_aqui"
     VISUAL_CROSSING_KEY = "tu_clave_de_visual_crossing_aqui"
-
     ```
-
 
 4. **Ejecutar el dashboard:**
     ```bash
     streamlit run app.py
-
     ```
+    
+## 🛡️ Plan de Recuperación ante Desastres y Reconstrucción Completa
+
+El repositorio está diseñado para ser 100% autónomo. Si los datasets o los modelos binarios se pierden por completo, el sistema puede reconstruirse desde cero ejecutando dos comandos en la terminal:
+
+### Paso 1: Inicialización de la Base Inmutable (Semilla)
+Descarga y compila de forma paginada los 4 años de historia (2022-2025) directo de las APIs limpias, recreando los CSVs maestros:
+```bash
+python seed_historical.py
+```
+
+### Paso 2: Orquestación del Pipeline Operativo
+Actualiza la base histórica con el delta dinámico de 2026, ejecuta el benchmark out-of-sample y compila el modelo final de producción:
+```bash
+python retrain.py
+```
+
+>💡 Nota de Auditoría / Modo Mantenimiento: Si necesitas regenerar exactamente el artefacto original de R&D (models/modelo_final_ercot_lgb.json) entrenado solo con el bloque 2022-2025 para replicar el notebook, abre retrain.py y descomenta las líneas marcadas bajo el bloque de Modo Mantenimiento en el Paso 6 antes de ejecutar el script.
 
 ## 📁 Estructura del Repositorio
 

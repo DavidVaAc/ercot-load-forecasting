@@ -14,6 +14,7 @@ Pipeline completo en 6 pasos:
 """
 
 import logging
+import os
 import tomllib
 
 import numpy as np
@@ -34,6 +35,7 @@ logging.basicConfig(
 TARGET_COL = "value"
 EVAL_CUTOFF = "2025-01-01"       # Límite fijo para el benchmark de evaluación
 MODEL_PATH = "models/modelo_final_ercot_lgb_retrained.json"
+BASE_MODEL_PATH = "models/modelo_final_ercot_lgb.json"
 SECRETS_PATH = ".streamlit/secrets.toml"
 
 # Columnas a conservar del dataset estático antes de concatenar
@@ -140,6 +142,19 @@ def main() -> None:
         "Benchmark 2025 → MAPE: %.2f%%  MAE: %.0f MW  RMSE: %.0f MW",
         mape, mae, rmse,
     )
+
+    # 💡 MODO MANTENIMIENTO: Descomenta las siguientes líneas si deseas regenerar 
+    # estrictamente el modelo base de R&D (2022-2025).
+    # ─────────────────────────────────────────────────────────────────────────────────
+    # logging.info("⚠️ [MANTENIMIENTO] Regenerando estrictamente el MODELO BASE de R&D (2022-2025)...")
+    #eval_model.fit(X, y)
+    #if BASE_MODEL_PATH is not None:
+    #    os.makedirs(os.path.dirname(BASE_MODEL_PATH) or ".", exist_ok=True)
+    #    eval_model.booster_.save_model(BASE_MODEL_PATH)
+    #    logging.info(
+    #        "train_lightgbm: production model saved to '%s'.", BASE_MODEL_PATH
+    #    )
+    # ─────────────────────────────────────────────────────────────────────────────────
 
     # ─────────────────────────────────────────────────────────────────
     # PASO 6: Reentrenamiento en 100% de datos (2022-hoy) y guardado
