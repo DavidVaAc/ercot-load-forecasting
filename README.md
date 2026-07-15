@@ -150,8 +150,14 @@ Si deseas ejecutar este dashboard de forma local para desarrollo o auditorías, 
     ```
 
 2. **Instalar dependencias:**
+    * Para correr la app en producción:
     ```bash
     pip install -r requirements.txt
+
+    ```
+    * Para correr los notebooks de R&D:
+    ```bash
+    pip install -r requirements-dev.txt
 
     ```
 
@@ -192,15 +198,23 @@ ercot-load-forecasting/
 │   ├── u_graph.png              # Gráfico de la curva termodinámica en U
 │   └── shap.png                 # Diagrama de abejas de valores SHAP
 ├── 📁 notebooks/
-│   ├── electricity_demand.ipynb # Notebook de R&D, entrenamiento y explicabilidad SHAP
-│   ├── EIA_API.ipynb            # Validación y pruebas de esquemas sobre la API de la EIA
-│   └── OPEN_METEO_API.ipynb     # Validación y pruebas de carga sobre la API de Open-Meteo
-├── .gitignore                   # Exclusión de archivos locales y entornos virtuales
-├── app.py                       # Código fuente del Dashboard de producción en Streamlit
-├── README.md                    # Documentación técnica principal del sistema (Este archivo)
-├── requirements.txt             # Dependencias declarativas mapeadas para el contenedor en la nube
-├── LICENSE                      # Licencia legal de distribución del proyecto
-└── seed_backup.py               # Script auxiliar para inicialización de respaldos
+│   ├── electricity_demand.ipynb   # Notebook de R&D, entrenamiento y explicabilidad SHAP
+│   ├── EIA_API.ipynb              # Validación y pruebas de esquemas sobre la API de la EIA
+│   └── OPEN_METEO_API.ipynb       # Validación y pruebas de carga sobre la API de Open-Meteo
+├── 📁 src/                        # 📦 PAQUETE MODULAR DE PRODUCCIÓN
+│   ├── __init__.py                # Fachada del paquete y exposición de la API pública
+│   ├── extraction.py              # Capa de adquisición de datos y failover en cascada
+│   ├── processing.py              # Carpintería de datos e ingeniería de características estables
+│   └── training.py                # Pipeline de modelado LightGBM y diagnóstico de salud
+├── .gitignore                     # Exclusión de archivos locales y entornos virtuales
+├── seed_historical.py             # Script auxiliar para inicialización de datasets históricos
+├── retrain.py                     # Script de reentrenamiento del modelo LightGBM en producción
+├── app.py                         # Código fuente del Dashboard de producción en Streamlit
+├── README.md                      # Documentación técnica principal del sistema (Este archivo)
+├── requirements.txt               # Dependencias declarativas mapeadas para el contenedor en la nube
+├── requirements-dev.txt           # Dependencias adicionales para desarrollo y R&D
+├── LICENSE                        # Licencia legal de distribución del proyecto
+└── seed_backup.py                 # Script auxiliar para inicialización de respaldos
 
 ```
 

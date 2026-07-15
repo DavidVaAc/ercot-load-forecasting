@@ -1,17 +1,19 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import lightgbm as lgb
-from sklearn.metrics import r2_score
-import gridstatus
-import requests
-import time
 import os
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import streamlit.components.v1 as components
 from datetime import datetime, timedelta
-from pandas.tseries.holiday import USFederalHolidayCalendar
+
+import gridstatus
+import lightgbm as lgb
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+import streamlit.components.v1 as components
+from plotly.subplots import make_subplots
+from sklearn.metrics import r2_score
+
+# --- Production pipeline modules (src/ package) ---
+from src.extraction import fetch_live_data
+from src.processing import COLUMNS_ORDER, build_live_features
 
 # =====================================================================
 # 1. CONFIGURACIÓN DE LA APP & CREDENCIALES
@@ -21,225 +23,26 @@ st.set_page_config(page_title="Predicción de Demanda Eléctrica - Texas (ERCOT)
 EIA_API_KEY = st.secrets["EIA_API_KEY"]
 VISUAL_CROSSING_KEY = st.secrets["VISUAL_CROSSING_KEY"]
 
-EIA_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/"
-OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
-
-# Lista exacta de columnas requeridas por el LightGBM (Mismo orden del R&D)
-COLUMNS_ORDER = [
-    'houston_temp', 'houston_humidity', 'houston_apparent_temp', 'houston_wind_speed',
-    'dallas_temp', 'dallas_humidity', 'dallas_apparent_temp', 'dallas_wind_speed',
-    'austin_temp', 'austin_humidity', 'austin_apparent_temp', 'austin_wind_speed',
-    'texas_avg_temp', 'hour', 'day_of_week', 'month', 'is_weekend',
-    'load_lag_24', 'load_lag_48', 'load_lag_168',
-    'load_rolling_mean_24h', 'load_rolling_std_24h', 'load_rolling_max_24h',
-    'is_holiday', 'temp_delta_24h', 'CDD', 'HDD'
-]
 
 @st.cache_resource
-def load_saved_model():
-    return lgb.Booster(model_file='data/modelo_final_ercot_lgb.json')
+def load_saved_model() -> lgb.Booster:
+    return lgb.Booster(model_file='models/modelo_final_ercot_lgb.json')
+
 
 # =====================================================================
-# 2. FUNCIONES DE EXTRACCIÓN EN VIVO CON ARQUITECTURA EN CASCADA
+# 2. CAPA DE EXTRACCIÓN EN VIVO (thin wrapper con caché de Streamlit)
 # =====================================================================
 @st.cache_data(ttl=3600)
-def fetch_live_data():
-    hoy = datetime.utcnow()
-    hace_8_dias = hoy - timedelta(days=8)
-    
-    backup_eia_path = 'data/backup_live_eia.csv'
-    backup_clima_path = 'data/backup_live_clima.csv'
-    usando_backup = False
-    
-    HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    }
-    
-    # --- A. EXTRAER DEMANDA HISTÓRICA RECIENTE (EIA) ---
-    params_eia = {
-        "api_key": EIA_API_KEY,
-        "frequency": "hourly",
-        "data[0]": "value",
-        "facets[respondent][]": "ERCO",
-        "facets[type][]": "D",
-        "start": hace_8_dias.strftime("%Y-%m-%dT%H"),
-        "end": hoy.strftime("%Y-%m-%dT%H"),
-        "sort[0][column]": "period",
-        "sort[0][direction]": "asc",
-        "length": 5000
-    }
-    
-    try:
-        response_eia = requests.get(EIA_URL, params=params_eia, headers=HEADERS, timeout=(5, 15))
-        response_eia.raise_for_status()
-        res_eia = response_eia.json()
-        
-        df_eia = pd.DataFrame(res_eia['response']['data'])
-        df_eia['timestamp'] = pd.to_datetime(df_eia['period'])
-        df_eia = df_eia.set_index('timestamp').sort_index()
-        df_eia['value'] = df_eia['value'].astype(float)
-        
-        os.makedirs('data', exist_ok=True)
-        df_eia.to_csv(backup_eia_path)
-    except Exception as e:
-        st.sidebar.warning(f"EIA API Offline, cargando respaldo local. Motivo: {e}")
-        if os.path.exists(backup_eia_path):
-            df_eia = pd.read_csv(backup_eia_path, index_col='timestamp', parse_dates=True)
-            usando_backup = True
-        else:
-            return None, None, False
+def _fetch_live_data_cached():
+    """One-hour cached wrapper that delegates to src.extraction.fetch_live_data."""
+    return fetch_live_data(
+        eia_api_key=EIA_API_KEY,
+        visual_crossing_key=VISUAL_CROSSING_KEY,
+    )
 
-    # --- B. EXTRAER CLIMA: CASCADA INTELIGENTE ---
-    df_clima = None
-    api_clima_exito = False
-    
-    # 🌲 NIVEL 1: Intentar Open-Meteo (Fuente Principal)
-    params_om = {
-        "latitude": [29.7604, 32.7767, 30.2672],
-        "longitude": [-95.3698, -96.7970, -97.7431],
-        "hourly": "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m",
-        "past_days": 8,
-        "forecast_days": 2,
-        "timezone": "UTC"
-    }
-    try:
-        response_om = requests.get(OPEN_METEO_URL, params=params_om, headers=HEADERS, timeout=(5, 15))
-        response_om.raise_for_status()
-        res_om = response_om.json()
-        
-        ciudades = ["houston", "dallas", "austin"]
-        df_clima = pd.DataFrame({"timestamp": pd.to_datetime(res_om[0]["hourly"]["time"])})
-        
-        for i, ciudad in enumerate(ciudades):
-            h = res_om[i]["hourly"]
-            df_clima[f"{ciudad}_temp"] = h["temperature_2m"]
-            df_clima[f"{ciudad}_humidity"] = h["relative_humidity_2m"]
-            df_clima[f"{ciudad}_apparent_temp"] = h["apparent_temperature"]
-            df_clima[f"{ciudad}_wind_speed"] = h["wind_speed_10m"]
-            
-        df_clima = df_clima.set_index('timestamp').sort_index()
-        api_clima_exito = True
-        st.sidebar.success("Clima extraído con éxito desde Open-Meteo (Fuente Principal)")
-    except Exception as e_om:
-        st.sidebar.warning(f"Open-Meteo falló ({e_om}). Saltando a Nivel 2: Visual Crossing...")
-        
-        # 🌤️ NIVEL 2: Fallback a Visual Crossing (Fuente Secundaria)
-        start_str = hace_8_dias.strftime("%Y-%m-%d")
-        end_str = (hoy + timedelta(days=2)).strftime("%Y-%m-%d")
-        ciudades = ["houston", "dallas", "austin"]
-        vc_exito = True
-        df_clima_vc = None
-        
-        for ciudad in ciudades:
-            url_vc = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{ciudad}/{start_str}/{end_str}"
-            params_vc = {
-                "key": VISUAL_CROSSING_KEY,
-                "unitGroup": "metric",
-                "include": "hours",
-                "contentType": "json",
-                "timezone": "Z" # Sincronización horaria absoluta en UTC
-            }
-            try:
-                response_vc = requests.get(url_vc, params=params_vc, headers=HEADERS, timeout=(5, 15))
-                response_vc.raise_for_status()
-                res_vc = response_vc.json()
-                
-                hours_data = []
-                for day in res_vc['days']:
-                    for hour in day['hours']:
-                        ts_str = f"{day['datetime']} {hour['datetime']}"
-                        hours_data.append({
-                            "timestamp": pd.to_datetime(ts_str),
-                            f"{ciudad}_temp": float(hour['temp']),
-                            f"{ciudad}_humidity": float(hour['humidity']),
-                            f"{ciudad}_apparent_temp": float(hour['feelslike']),
-                            f"{ciudad}_wind_speed": float(hour['windspeed'])
-                        })
-                
-                df_ciudad = pd.DataFrame(hours_data).set_index('timestamp')
-                if df_clima_vc is None:
-                    df_clima_vc = df_ciudad
-                else:
-                    df_clima_vc = df_clima_vc.join(df_ciudad, how='outer')
-                
-                time.sleep(1) # Evitar penalización por ráfaga
-            except Exception as e_vc:
-                st.sidebar.error(f"Visual Crossing falló en {ciudad}: {e_vc}")
-                vc_exito = False
-                break
-                
-        if vc_exito and df_clima_vc is not None:
-            df_clima = df_clima_vc
-            api_clima_exito = True
-            st.sidebar.success("Clima extraído con éxito desde Visual Crossing (Respaldo)")
-
-    # 📦 NIVEL 3: Si ambas APIs caen, usar datos estáticos de Contingencia Local
-    if not api_clima_exito:
-        if os.path.exists(backup_clima_path):
-            df_clima = pd.read_csv(backup_clima_path, index_col='timestamp', parse_dates=True)
-            usando_backup = True
-            st.sidebar.warning("Usando almacenamiento local de contingencia para Clima.")
-        else:
-            return None, None, False
-    else:
-        # Si alguna API respondió con éxito, guardamos una copia fresca para futuras contingencias
-        os.makedirs('data', exist_ok=True)
-        df_clima.to_csv(backup_clima_path)
-        
-    # Redondeo absoluto de marcas de tiempo para evitar microsegundos huérfanos
-    if df_eia is not None:
-        df_eia.index = df_eia.index.floor('h')
-    if df_clima is not None:
-        df_clima.index = df_clima.index.floor('h')
-        
-    return df_eia, df_clima, usando_backup
 
 # =====================================================================
-# 3. PIPELINE DE INFERENCIA (FEATURE ENGINEERING EN VIVO)
-# =====================================================================
-def build_live_features(df_eia, df_clima):
-    df_live = df_clima.join(df_eia['value'], how='left')
-    
-    df_live['hour'] = df_live.index.hour
-    df_live['day_of_week'] = df_live.index.dayofweek
-    df_live['month'] = df_live.index.month
-    df_live['is_weekend'] = df_live['day_of_week'].isin([5, 6]).astype(int)
-    
-    df_live['load_lag_24'] = df_live['value'].shift(24)
-    df_live['load_lag_48'] = df_live['value'].shift(48)
-    df_live['load_lag_168'] = df_live['value'].shift(168)
-    
-    df_live['load_rolling_mean_24h'] = df_live['value'].shift(24).rolling(window=24).mean()
-    df_live['load_rolling_std_24h'] = df_live['value'].shift(24).rolling(window=24).std()
-    df_live['load_rolling_max_24h'] = df_live['value'].shift(24).rolling(window=24).max()
-    
-    df_live["texas_avg_temp"] = df_live[["houston_temp", "dallas_temp", "austin_temp"]].mean(axis=1)
-    df_live['temp_delta_24h'] = df_live['texas_avg_temp'] - df_live['texas_avg_temp'].shift(24)
-    df_live['CDD'] = np.maximum(0, df_live['texas_avg_temp'] - 18.3)
-    df_live['HDD'] = np.maximum(0, 18.3 - df_live['texas_avg_temp'])
-    
-    cal = USFederalHolidayCalendar()
-    feriados = cal.holidays(start=df_live.index.min(), end=df_live.index.max())
-    df_live['is_holiday'] = df_live.index.normalize().isin(feriados).astype(int)
-    
-    # Relleno de seguridad anti-NaNs para variables temporales complejas
-    for col in COLUMNS_ORDER:
-        if col in df_live.columns:
-            df_live[col] = df_live[col].ffill().bfill()
-            
-    # 🛠️ FILTRADO DETERMINISTA BASADO EN LA ÚLTIMA FECHA REAL DE LA EIA
-    ultimo_ts_real = df_eia.index.max()
-    
-    # Bloque Futuro: Las 24 horas siguientes al último dato conocido
-    df_predict = df_live[df_live.index > ultimo_ts_real].head(24)
-    
-    # Bloque Pasado: Las últimas 24 horas con datos reales para control de calidad
-    df_past = df_live[df_live.index <= ultimo_ts_real].tail(24)
-    
-    return df_predict[COLUMNS_ORDER], df_past[COLUMNS_ORDER], df_past['value']
-
-# =====================================================================
-# 4. INTERFAZ GRÁFICA (STREAMLIT)
+# 3. INTERFAZ GRÁFICA (STREAMLIT)
 # =====================================================================
 st.title("⚡ Sistema Predictivo de Carga Eléctrica: ERCOT (Texas)", anchor="panel-principal")
 st.markdown("Dashboard de MLOps con arquitectura redundante para el pronóstico de demanda energética de la red eléctrica tejana.")
@@ -281,7 +84,7 @@ components.html(html_reloj, height=100)
 
 try:
     model = load_saved_model()
-    df_eia, df_clima, usando_backup = fetch_live_data()
+    df_eia, df_clima, usando_backup = _fetch_live_data_cached()
     
     if df_eia is None or df_clima is None:
         st.error("🔌 Error Crítico de Inicialización: No se pudo establecer comunicación con las APIs climáticas ni existen archivos semilla en la carpeta data/.")
