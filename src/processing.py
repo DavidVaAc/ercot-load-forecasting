@@ -115,10 +115,15 @@ def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
     # 4. Sort chronologically — critical for all shift/rolling ops
     df = df.sort_index()
 
-    # 5. Compute texas_avg_temp if not already present in the source CSV
+ # 5. Compute/Fill texas_avg_temp if missing or contains NaNs
     _city_temp_cols = ["houston_temp", "dallas_temp", "austin_temp"]
-    if "texas_avg_temp" not in df.columns and all(c in df.columns for c in _city_temp_cols):
-        df["texas_avg_temp"] = df[_city_temp_cols].mean(axis=1)
+    if all(c in df.columns for c in _city_temp_cols):
+        avg_temp = df[_city_temp_cols].mean(axis=1)
+        if "texas_avg_temp" not in df.columns:
+            df["texas_avg_temp"] = avg_temp
+        else:
+            # Rellena únicamente los NaNs de 2026 con el promedio de las 3 ciudades
+            df["texas_avg_temp"] = df["texas_avg_temp"].fillna(avg_temp)
 
     # 6. Calendar variables
     df["hour"] = df.index.hour
@@ -148,6 +153,13 @@ def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
     # 11. Cooling / Heating Degree Days (linearise the U-shaped temp-load curve)
     df["CDD"] = np.maximum(0, df["texas_avg_temp"] - _COMFORT_BASE_TEMP_C)
     df["HDD"] = np.maximum(0, _COMFORT_BASE_TEMP_C - df["texas_avg_temp"])
+
+    # ── DIAGNÓSTICO TEMPORAL ──
+    print("\n" + "=" * 50)
+    print("🔍 DIAGNÓSTICO DE NaNs EN 2026 (antes de dropna):")
+    print(df.loc["2026-01-01":].isna().sum()[lambda x: x > 0])
+    print("=" * 50 + "\n")
+    #df.to_csv("diagnostico_nans_2026.csv", index=True)
 
     # 12. Remove leading NaN rows introduced by the 168 h lag
     n_before = len(df)

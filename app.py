@@ -26,7 +26,7 @@ VISUAL_CROSSING_KEY = st.secrets["VISUAL_CROSSING_KEY"]
 
 @st.cache_resource
 def load_saved_model() -> lgb.Booster:
-    return lgb.Booster(model_file='models/modelo_final_ercot_lgb.json')
+    return lgb.Booster(model_file='models/modelo_final_ercot_lgb_v2.json')
 
 
 # =====================================================================

@@ -75,6 +75,8 @@ def main() -> None:
     df_static.columns = df_static.columns.str.replace("-", "_").str.lower()
     df_static = df_static[[c for c in _BASE_COLS if c in df_static.columns]].copy()
     df_static["period"] = pd.to_datetime(df_static["period"])
+    mask = df_static["period"].dt.year.isin([2023, 2024, 2025])
+    df_static = df_static.loc[mask].sort_values("period")
     last_static = df_static["period"].max()
     logging.info(
         "CSV estáticos: %d filas  |  rango: %s → %s",
@@ -121,7 +123,12 @@ def main() -> None:
     df = prepare_features(df_full)
     feature_cols = [c for c in df.columns if c != TARGET_COL]
     X, y = df[feature_cols], df[TARGET_COL]
-    logging.info("Dataset final: %d filas × %d features", *X.shape)
+    logging.info(
+        "Dataset final: %d filas × %d features, rango: %s → %s", 
+        *X.shape, 
+        X.index.min().date(), 
+        X.index.max().date()
+    )
 
     # ─────────────────────────────────────────────────────────────────
     # PASO 5: Evaluación sobre el benchmark fijo 2025
